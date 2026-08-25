@@ -124,10 +124,22 @@ const DARI_BERKAS = process.env.ARTIKEL_JSON;
     console.log(`  (memakai ${ARTIKEL.length} artikel nyata dari ${DARI_BERKAS})
 `);
   }
+  // Aplikasi dijaga sandi (proxy.ts) — ambil cookie dulu supaya tidak kena 401.
+  let cookie = '';
+  if (process.env.APP_PASSWORD) {
+    const masuk = await fetch(ALAMAT.replace('/export', '/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: process.env.APP_PASSWORD }),
+    });
+    cookie = (masuk.headers.get('set-cookie') ?? '').split(';')[0];
+    console.log(`  (masuk: HTTP ${masuk.status})`);
+  }
+
   const t0 = Date.now();
   const res = await fetch(ALAMAT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
     body: JSON.stringify({ publishDate: PUBLISH, articles: ARTIKEL }),
   });
   if (!res.ok) {

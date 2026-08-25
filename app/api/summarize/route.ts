@@ -1,6 +1,8 @@
 import { summarizeMany, type ArtikelUntukRingkas } from '@/lib/gemini';
 
-export const maxDuration = 300;
+// Vercel Hobby membatasi 60 detik. Merangkum makan 10-39 detik per artikel,
+// jadi ini memang mepet — lihat catatan risiko di README.
+export const maxDuration = 60;
 
 const MAKS = 5;
 

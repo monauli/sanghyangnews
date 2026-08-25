@@ -139,15 +139,46 @@ lalu coba unduh lagi. IDM suka mencegat unduhan PDF sampai berkasnya jadi kosong
 
 ### Konfigurasi
 
-Butuh satu environment variable. Buat berkas `.env.local` di root:
+Butuh dua environment variable. Buat berkas `.env.local` di root (contoh ada di
+`.env.example`):
 
 ```
 GEMINI_API_KEY=xxx
+APP_PASSWORD=sandi-bersama
 ```
 
-Kunci gratis bisa diambil di https://aistudio.google.com/apikey.
-Tanpa kunci ini, aplikasi tetap jalan tapi ringkasan otomatis akan gagal —
-UI akan menampilkan textarea kosong dengan pesan "Silakan tulis manual".
+`GEMINI_API_KEY` — kunci gratis di https://aistudio.google.com/apikey. Tanpa kunci
+ini aplikasi tetap jalan, tapi ringkasan otomatis gagal dan UI menampilkan textarea
+kosong dengan pesan "Silakan tulis manual".
+
+`APP_PASSWORD` — sandi bersama untuk masuk. **Wajib diisi.** Kalau kosong, `proxy.ts`
+mengunci seluruh aplikasi (semua halaman dan semua `/api/*` dijawab 503). Fail-closed
+disengaja: salah setel di dashboard tidak boleh berarti pintu terbuka untuk umum.
+
+### Deploy ke Vercel
+
+Sudah disiapkan, tapi **belum pernah diuji di Vercel** — baru diuji di lokal.
+
+- `vercel.json` — region `sin1` (Singapura), `maxDuration` 60 detik (batas Hobby),
+  memori 1769 MB untuk `/api/export` karena Chromium haus memori
+- `/api/export` mendeteksi lingkungan lewat `process.env.VERCEL`: di Vercel memakai
+  `@sparticuz/chromium` + `puppeteer-core`, di lokal memakai `puppeteer` biasa yang
+  membawa Chromium sendiri
+- `puppeteer` sengaja ada di **devDependencies** — kalau ikut ter-install di Vercel,
+  ukuran fungsinya membengkak percuma. Set `PUPPETEER_SKIP_DOWNLOAD=true` di env
+  Vercel supaya build tidak mengunduh Chromium 150 MB yang tidak dipakai
+
+Environment variable yang harus diisi di dashboard Vercel:
+
+| Variable | Nilai |
+|---|---|
+| `GEMINI_API_KEY` | kunci Gemini |
+| `APP_PASSWORD` | sandi bersama |
+| `PUPPETEER_SKIP_DOWNLOAD` | `true` |
+
+**Batas Hobby yang perlu disadari:** merangkum makan 10–39 detik per artikel dan
+batasnya 60 detik. Artikel panjang saat Gemini sedang lambat bisa kena timeout —
+UI akan menampilkan "Gagal merangkum, silakan tulis manual", tidak crash.
 
 ### ⚠️ Risiko utama: resolver
 
@@ -169,11 +200,14 @@ lalu menekan **Ambil Ulang dari Link**, yang melewati resolver sepenuhnya.
 ### Struktur
 
 ```
+proxy.ts     penjaga sandi — Next 16 memakai nama ini, BUKAN middleware.ts
+vercel.json  region sin1 + maxDuration 60 detik
 /config      keywords.ts (19 query, bobot skor, blacklist) · thresholds.ts (ambang)
 /lib         googlenews · filter · scoring · resolver · extractor · gemini · ui
+             urlaman (penjaga SSRF) · sandi (banding waktu-aman)
 /templates   newsletter.ts  ← satu sumber untuk pratinjau DAN PDF
-/app/api     search (NDJSON, dialirkan) · resolve · extract · summarize · export
-/app         page (tanggal) · review (pilih & edit) · preview (susun & unduh)
+/app/api     search (NDJSON, dialirkan) · resolve · extract · summarize · export · login
+/app         page (tanggal) · review (pilih & edit) · preview (susun & unduh) · login
 /scripts     skrip uji, dijalankan dengan `npx --yes tsx scripts/<nama>.ts`
 ```
 

@@ -1,9 +1,32 @@
-import puppeteer from 'puppeteer';
 import { renderNewsletter, type ArtikelNewsletter } from '@/templates/newsletter';
 import { UA } from '@/config/keywords';
 import { fetchAman } from '@/lib/urlaman';
 
-export const maxDuration = 120;
+export const maxDuration = 60;   // batas Vercel Hobby
+
+/**
+ * Vercel tidak menyediakan Chromium, jadi di sana dipakai @sparticuz/chromium
+ * (Chromium ramping khusus serverless) lewat puppeteer-core.
+ * Di lokal tetap memakai `puppeteer` biasa yang membawa Chromium sendiri —
+ * itu sebabnya `puppeteer` ada di devDependencies, bukan dependencies:
+ * kalau ikut ter-install di Vercel, ukuran fungsinya membengkak percuma.
+ */
+async function bukaBrowser() {
+  if (process.env.VERCEL) {
+    const chromium = (await import('@sparticuz/chromium')).default;
+    const { launch } = await import('puppeteer-core');
+    // @sparticuz/chromium v149 hanya menyediakan args + executablePath();
+    // defaultViewport/headless sudah dibuang dari API-nya.
+    return launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
+  }
+
+  const puppeteer = await import('puppeteer');
+  return puppeteer.default.launch({ headless: true });
+}
 
 const MAKS = 10;
 const ymd = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,7 +73,7 @@ export async function POST(req: Request) {
 
   let browser;
   try {
-    browser = await puppeteer.launch({ headless: true });
+    browser = await bukaBrowser();
     const page = await browser.newPage();
     await page.setContent(renderNewsletter(publishDate, siap), { waitUntil: 'load' });
     const pdf = await page.pdf({

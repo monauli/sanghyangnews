@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["sin1"],
+  "functions": {
+    "app/api/search/route.ts": { "maxDuration": 60 },
+    "app/api/summarize/route.ts": { "maxDuration": 60 },
+    "app/api/export/route.ts": { "maxDuration": 60, "memory": 1769 },
+    "app/api/extract/route.ts": { "maxDuration": 60 },
+    "app/api/resolve/route.ts": { "maxDuration": 60 }
+  }
+}

@@ -71,8 +71,34 @@ export function urlAman(u: unknown): u is string {
   }
 }
 
-/** Bentuk + hasil resolve DNS. Ditolak kalau SATU saja alamatnya masuk rentang terlarang. */
-export async function alamatAman(u: string): Promise<boolean> {
+export const BATAS_DNS = 5000;
+
+/**
+ * dns.lookup() memakai resolver sistem operasi: tidak punya batas waktu sendiri
+ * dan TIDAK menuruti AbortSignal milik pemanggil. Kalau resolvernya menggantung,
+ * pemeriksaan ini ikut menggantung tanpa batas — batas 12 detik di extractor
+ * baru berlaku setelah fetch dimulai. Karena itu dibatasi di sini.
+ */
+export async function lookupBerbatas(host: string, batas = BATAS_DNS) {
+  let jam: NodeJS.Timeout;
+  const kehabisanWaktu = new Promise<never>((_, tolak) => {
+    jam = setTimeout(() => tolak(new Error('DNS kehabisan waktu')), batas);
+    jam.unref?.();
+  });
+  try {
+    return await Promise.race([lookup(host, { all: true }), kehabisanWaktu]);
+  } finally {
+    clearTimeout(jam!);
+  }
+}
+
+/**
+ * Bentuk + hasil resolve DNS. Ditolak kalau SATU saja alamatnya masuk rentang terlarang.
+ *
+ * FAIL-CLOSED: apa pun yang salah — domain tidak ada, DNS mati, DNS lambat,
+ * jaringan putus — hasilnya `false`. Tidak pernah "ya sudah, lanjut saja".
+ */
+export async function alamatAman(u: string, batasDns = BATAS_DNS): Promise<boolean> {
   if (!urlAman(u)) return false;
   const { hostname } = new URL(u);
   const polos = hostname.replace(/^\[|\]$/g, '');
@@ -81,7 +107,7 @@ export async function alamatAman(u: string): Promise<boolean> {
   if (/^[\d.]+$/.test(polos) || polos.includes(':')) return !ipTerlarang(polos);
 
   try {
-    const hasil = await lookup(polos, { all: true });
+    const hasil = await lookupBerbatas(polos, batasDns);
     return hasil.length > 0 && !hasil.some((a) => ipTerlarang(a.address));
   } catch {
     return false;   // tidak bisa di-resolve = tidak dipakai

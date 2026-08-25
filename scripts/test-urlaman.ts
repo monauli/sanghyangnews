@@ -1,5 +1,5 @@
 /** Uji penjaga SSRF. Jalankan: npx --yes tsx scripts/test-urlaman.ts */
-import { urlAman, alamatAman, ipTerlarang, fetchAman } from '../lib/urlaman';
+import { urlAman, alamatAman, ipTerlarang, fetchAman, lookupBerbatas } from '../lib/urlaman';
 
 let gagal = 0;
 const cek = (ok: boolean, label: string) => {
@@ -57,6 +57,31 @@ const cek = (ok: boolean, label: string) => {
       cek((e as Error).message === 'alamat tidak diizinkan', `${u} → "${(e as Error).message}"`);
     }
   }
+
+  console.log('\n  ── FAIL-CLOSED SAAT DNS BERMASALAH ──');
+  for (const [u, ket] of [
+    ['http://domain-ini-pasti-tidak-ada-12345678.com/', 'domain tidak ada'],
+    ['http://a.b.c.d.e.tidak-ada-sama-sekali-xyz/', 'TLD tidak ada'],
+  ] as [string, string][]) {
+    cek(!(await alamatAman(u)), `${ket.padEnd(20)} → ditolak`);
+    try {
+      await fetchAman(u, { signal: AbortSignal.timeout(8000) });
+      cek(false, `${ket} — fetchAman TIDAK melempar!`);
+    } catch (e) {
+      cek((e as Error).message === 'alamat tidak diizinkan', `${ket.padEnd(20)} → fetchAman melempar`);
+    }
+  }
+  // Nama acak = dijamin belum di cache, jadi butuh perjalanan jaringan (puluhan ms).
+  // Dengan batas 1 ms, yang menang pasti pembatas waktunya — bukan balapan cache.
+  const acak = `${Math.random().toString(36).slice(2)}.ketik.com`;
+  try {
+    await lookupBerbatas(acak, 1);
+    cek(false, 'DNS kehabisan waktu  → TIDAK melempar!');
+  } catch (e) {
+    cek((e as Error).message === 'DNS kehabisan waktu', `DNS kehabisan waktu  → "${(e as Error).message}"`);
+  }
+  cek(!(await alamatAman(`https://${acak}/berita`, 1)), 'DNS kehabisan waktu  → alamatAman menolak');
+  cek(await alamatAman('https://ketik.com/berita'), 'DNS normal           → tetap diterima');
 
   console.log('\n  ── urlAman (pemeriksaan bentuk saja) ──');
   cek(urlAman('https://contoh.com/a'), 'https diterima');

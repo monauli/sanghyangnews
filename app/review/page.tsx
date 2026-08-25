@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import StepIndicator from '../components/StepIndicator';
 import ArticleCard, { kerjaBaru, type Kerja } from './ArticleCard';
 import { KUNCI, JUDUL_GRUP, grupOf, type Grup, type UiArticle, type ArtikelTerpilih } from '@/lib/ui';
+import { cekJiplakan } from '@/lib/jiplak';
 
 const URUTAN_GRUP: Grup[] = ['utama', 'lain', 'kurang'];
 
@@ -102,8 +103,14 @@ export default function HalamanReview() {
       }
     }
 
-    if (!teks) {
-      ubah(a.id, { tahap: 'kosong', galat: { extract: 'isi artikel kosong' } });
+    // Tanpa bahan, Gemini tidak bisa apa-apa. Katakan itu terang-terangan —
+    // dulu banner diam-diam berubah jadi galat extract, dan dari sisi user
+    // terlihat seperti "tombolnya tidak berfungsi".
+    if (!teks?.trim()) {
+      ubah(a.id, {
+        tahap: 'siap',
+        galat: { sumber: 'Belum ada isi artikel untuk diringkas. Tempel isi beritanya di kotak kuning di atas dulu.' },
+      });
       return;
     }
 
@@ -118,7 +125,10 @@ export default function HalamanReview() {
         warnings: [...new Set([...k.warnings.filter((w) => w !== 'artikel-pendek'), ...s.warnings])],
       }));
     } catch (e) {
-      ubah(a.id, { tahap: 'siap', summary: '', galat: { summarize: (e as Error).message } });
+      // Ringkasan yang sudah ada JANGAN dihapus — bisa jadi itu tulisan tangan user.
+      ubahDari(a.id, (k) => ({
+        tahap: 'siap', summary: k.summary ?? '', galat: { summarize: (e as Error).message },
+      }));
     }
   }
 
@@ -135,7 +145,9 @@ export default function HalamanReview() {
   const terpilih = (artikel ?? []).filter((a) => pilihan.includes(a.id));
   const belumSiap = terpilih.filter((a) => {
     const k = kerja[a.id] ?? kerjaBaru();
-    return k.tahap !== 'siap' || !k.summary?.trim() || !/^https?:\/\//.test(k.finalUrl ?? '');
+    if (k.tahap !== 'siap' || !k.summary?.trim() || !/^https?:\/\//.test(k.finalUrl ?? '')) return true;
+    // Artikel asli yang belum diringkas tidak boleh masuk PDF — itu hak cipta portal.
+    return !cekJiplakan(k.summary, k.fullText).aman;
   });
   const bisaLanjut = terpilih.length > 0 && belumSiap.length === 0;
 

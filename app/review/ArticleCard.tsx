@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { badge, tanggalPendek, type UiArticle } from '@/lib/ui';
+import { cekJiplakan } from '@/lib/jiplak';
 
 export type Kerja = {
   tahap: 'kosong' | 'resolve' | 'extract' | 'summarize' | 'siap';
@@ -12,7 +13,7 @@ export type Kerja = {
   summary: string | null;
   targetKata: [number, number] | null;
   warnings: string[];
-  galat: { resolve?: string; extract?: string; summarize?: string };
+  galat: { resolve?: string; extract?: string; summarize?: string; sumber?: string };
 };
 
 export const kerjaBaru = (): Kerja => ({
@@ -54,6 +55,7 @@ export default function ArticleCard({
   const fileRef = useRef<HTMLInputElement>(null);
   const sibuk = kerja.tahap !== 'kosong' && kerja.tahap !== 'siap';
   const adaGalat = Object.values(kerja.galat).some(Boolean);
+  const jiplak = cekJiplakan(kerja.summary ?? '', kerja.fullText);
 
   function unggahGambar(f: File | undefined) {
     if (!f) return;
@@ -160,9 +162,31 @@ export default function ArticleCard({
             />
           </label>
 
+          {/* DI ATAS Ringkasan, bukan di dasar panel. Sebelumnya kotak ini terkubur
+              di bawah pengaturan gambar, sementara kotak Ringkasan besar dan menonjol
+              persis di tengah — teks artikel jadi mudah tertempel ke kotak yang salah
+              dan lolos ke PDF tanpa pernah lewat Gemini. */}
+          {(!kerja.fullText || kerja.galat.extract) && (
+            <label className="flex flex-col gap-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+              1. Tempel isi beritanya di sini
+              <span className="text-xs font-normal text-amber-800">
+                Buka beritanya, salin isinya, tempel di kotak ini — lalu tekan{' '}
+                <strong>Buat Ulang Ringkasan</strong>. Jangan tempel ke kotak Ringkasan:
+                isinya harus diringkas dulu, bukan disalin apa adanya.
+              </span>
+              <textarea
+                value={kerja.fullText ?? ''}
+                onChange={(e) => onUbah({ fullText: e.target.value, galat: { ...kerja.galat, sumber: undefined } })}
+                rows={5}
+                placeholder="Tempel isi berita aslinya di sini…"
+                className="rounded-lg border border-amber-300 bg-white px-3 py-2 font-normal text-gray-900"
+              />
+            </label>
+          )}
+
           <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             <div className="flex items-baseline justify-between">
-              <span>Ringkasan</span>
+              <span>{kerja.fullText ? 'Ringkasan' : '2. Ringkasan'}</span>
               <span className="text-xs font-normal text-gray-500">
                 {hitungKata(kerja.summary ?? '')} kata
                 {kerja.targetKata && ` · target ${kerja.targetKata[0]}-${kerja.targetKata[1]}`}
@@ -178,6 +202,21 @@ export default function ArticleCard({
             {kerja.warnings.includes('artikel-pendek') && (
               <p className="text-xs font-normal text-amber-800">
                 ⚠️ Sumber terbatas, mohon periksa lebih teliti.
+              </p>
+            )}
+
+            {!jiplak.aman && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-normal text-red-800">
+                🔴 <strong>Ini masih artikel asli, bukan ringkasan.</strong> {jiplak.alasan}{' '}
+                Menerbitkannya melanggar hak cipta portal. Tekan{' '}
+                <strong>Buat Ulang Ringkasan</strong> supaya diringkas dulu, atau tulis
+                ulang dengan kalimat sendiri.
+              </p>
+            )}
+
+            {kerja.galat.sumber && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-normal text-amber-900">
+                ⚠️ {kerja.galat.sumber}
               </p>
             )}
             {/* Dua tombol ini harus SELALU ada selama kartu terpilih. Sebelumnya
@@ -248,18 +287,6 @@ export default function ArticleCard({
             </div>
           </div>
 
-          {kerja.galat.extract && (
-            <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-              Tempel isi artikel di sini
-              <textarea
-                value={kerja.fullText ?? ''}
-                onChange={(e) => onUbah({ fullText: e.target.value })}
-                rows={5}
-                placeholder="Salin isi berita dari situsnya, tempel di sini, lalu tekan Buat Ulang Ringkasan."
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal text-gray-900"
-              />
-            </label>
-          )}
         </div>
       )}
     </li>
@@ -268,17 +295,20 @@ export default function ArticleCard({
 
 function Galat({ kerja, onUlangi }: { kerja: Kerja; onUlangi: () => void }) {
   const { resolve, extract, summarize } = kerja.galat;
+  const { sumber } = kerja.galat;
   const pesan = resolve
     ? 'Link belum bisa dipastikan.'
     : extract
       ? 'Situs ini tidak bisa dibaca otomatis.'
-      : summarize
-        ? 'Gagal merangkum. Silakan tulis manual.'
-        : 'Gagal memuat.';
+      : sumber
+        ? 'Belum ada isi artikel untuk diringkas.'
+        : summarize
+          ? 'Gagal merangkum. Silakan tulis manual.'
+          : 'Gagal memuat.';
   const jalanKeluar = resolve
     ? 'Buka panel di bawah dan isi alamat beritanya.'
-    : extract
-      ? 'Buka panel di bawah dan tempel isi beritanya.'
+    : extract || sumber
+      ? 'Buka panel di bawah dan tempel isi beritanya di kotak kuning.'
       : 'Buka panel di bawah dan tulis ringkasannya.';
 
   return (

@@ -5,7 +5,7 @@
  */
 import { extractFromHtml } from '@extractus/article-extractor';
 import { UA } from '@/config/keywords';
-import { urlAman, hasilAman } from './urlaman';
+import { fetchAman, urlAman } from './urlaman';
 
 export type ExtractResult = {
   url: string;
@@ -44,13 +44,13 @@ const FULL_HEADERS: Record<string, string> = {
 
 /** Retry 2 tahap — sebagian portal menolak referer eksternal. */
 async function fetchHtml(url: string) {
-  let res = await fetch(url, { headers: FULL_HEADERS, signal: timeout(12000) });
+  let res = await fetchAman(url, { headers: FULL_HEADERS, signal: timeout(12000) });
   if (res.ok) return { res, attempt: 'header-lengkap' as const };
 
   const h2 = { ...FULL_HEADERS };
   delete h2.Referer;
   delete h2['Sec-Fetch-Site'];
-  res = await fetch(url, { headers: h2, signal: timeout(12000) });
+  res = await fetchAman(url, { headers: h2, signal: timeout(12000) });
   return { res, attempt: res.ok ? ('tanpa-referer' as const) : ('gagal' as const) };
 }
 
@@ -67,11 +67,11 @@ async function imageWidth(html: string, imgUrl: string): Promise<number | null> 
   if (!urlAman(imgUrl)) return null;
 
   try {
-    const res = await fetch(imgUrl, {
+    const res = await fetchAman(imgUrl, {
       headers: { 'User-Agent': UA, Range: 'bytes=0-65535' },
       signal: timeout(8000),
     });
-    if (!res.ok || !hasilAman(res)) return null;
+    if (!res.ok) return null;
     const b = Buffer.from(await res.arrayBuffer());
 
     if (b.length > 24 && b.toString('ascii', 1, 4) === 'PNG') return b.readUInt32BE(16);
@@ -115,8 +115,6 @@ export async function extractOne(url: string): Promise<ExtractResult> {
     const r = await fetchHtml(url);
     attempt = r.attempt;
     if (!r.res.ok) return { ...base, attempt, error: `HTTP ${r.res.status}` };
-    // Portal berita banyak yang redirect; pastikan tidak berakhir di jaringan internal.
-    if (!hasilAman(r.res)) return { ...base, attempt, error: 'alamat akhir tidak valid' };
     html = await r.res.text();
   } catch (e) {
     return { ...base, error: (e as Error).message };

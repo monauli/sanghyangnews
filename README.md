@@ -196,11 +196,14 @@ lalu menekan **Ambil Ulang dari Link**, yang melewati resolver sepenuhnya.
 - **`/api/export` tidak mengirim `Content-Disposition: attachment`** — download
   manager (IDM) mencegatnya dan mengembalikan 204 kosong. Nama berkas diatur
   di sisi klien lewat atribut `download`.
-- **Semua fetch sisi server wajib lewat `lib/urlaman.ts`.** Alamat yang datang dari
-  browser (artikel di `/api/extract`, gambar di `/api/export`) diperiksa dua kali:
-  sebelum fetch, dan atas `res.url` sesudahnya — supaya redirect tidak bisa berujung
-  di jaringan internal (`169.254.169.254`, `localhost`, `10.x`, `192.168.x`, dst).
-  Route baru yang mengambil URL dari klien **harus** memakai penjaga ini.
+- **Semua fetch sisi server wajib lewat `fetchAman()` di `lib/urlaman.ts`**, jangan
+  `fetch()` langsung. Alamatnya di-resolve DNS dulu lalu nomor IP hasilnya yang
+  diperiksa — memeriksa nama host saja tidak cukup, karena `localtest.me` dan
+  `*.nip.io` adalah nama biasa yang resolve ke `127.0.0.1`. Redirect diikuti manual
+  supaya tiap lompatan ikut diperiksa. Yang diblokir: loopback, privat, link-local
+  (`169.254.169.254`), CGNAT, ULA, multicast, dan rentang cadangan.
+  Sisa celah yang diketahui: DNS rebinding (alamat berubah antara pemeriksaan dan
+  fetch) — lihat komentar `ponytail:` di berkasnya.
 - **Gemini dipanggil paralel** kalau user mencentang beberapa artikel sekaligus.
   Free tier ±10 RPM; retry backoff sudah ada. Belum jadi masalah pada pemakaian
   1 newsletter/bulan.

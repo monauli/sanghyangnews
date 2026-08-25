@@ -1,6 +1,21 @@
 /** Uji nyata lib/extractor.ts. Jalankan test-resolver.ts dulu. */
 import { readFileSync } from 'node:fs';
-import { extractMany } from '../lib/extractor';
+import { extractMany, bukaEntitas } from '../lib/extractor';
+
+// Entitas HTML di URL gambar — kalau tidak di-decode, gambarnya gagal dimuat browser.
+console.log('  ── DECODE ENTITAS ──');
+const kasus: [string, string][] = [
+  ['https://x.id/og?src=a.jpg&amp;price=5&amp;n=0', 'https://x.id/og?src=a.jpg&price=5&n=0'],
+  ['https://x.id/a.jpg?w=1&amp;h=2', 'https://x.id/a.jpg?w=1&h=2'],
+  ['Judul &quot;Anyer&quot; &lt;resmi&gt;', 'Judul "Anyer" <resmi>'],
+  ['https://x.id/polos.jpg', 'https://x.id/polos.jpg'],
+];
+for (const [masuk, harap] of kasus) {
+  const hasil = bukaEntitas(masuk);
+  console.log(`  ${hasil === harap ? '✅' : '🔴'} ${masuk.slice(0, 46)}`);
+  console.assert(hasil === harap, `harusnya "${harap}", dapat "${hasil}"`);
+}
+console.log('');
 
 (async () => {
   const src: { title: string; finalUrl: string | null }[] =

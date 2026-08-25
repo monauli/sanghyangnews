@@ -47,3 +47,4 @@ scripts/.e2e-newsletter.pdf
 scripts/.uji-gambar.png
 scripts/.regresi.pdf
 scripts/.vercel-regresi.pdf
+.playwright-mcp/

@@ -2,8 +2,12 @@
  * Uji nyata /api/export — generate PDF lalu BONGKAR ISI PDF-nya.
  * Butuh `npm run dev` jalan. Jalankan: npx --yes tsx scripts/test-export.ts
  */
-import { writeFileSync, statSync } from 'node:fs';
+import { writeFileSync, statSync, existsSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
+
+// Sandi dibaca dari .env.local, bukan dioper lewat shell — supaya tidak
+// pernah muncul di riwayat perintah atau keluaran terminal.
+if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 
 const ALAMAT = 'http://localhost:3000/api/export';
 const KELUAR = process.env.PDF_OUT || 'scripts/.uji-newsletter.pdf';

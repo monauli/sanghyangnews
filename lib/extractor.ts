@@ -54,8 +54,22 @@ async function fetchHtml(url: string) {
   return { res, attempt: res.ok ? ('tanpa-referer' as const) : ('gagal' as const) };
 }
 
-const meta = (html: string, prop: string) =>
-  html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)`, 'i'))?.[1] ?? null;
+/**
+ * Isi atribut HTML masih berupa entitas. og:image yang punya query string
+ * biasanya ditulis `...?src=x&amp;price=y` — kalau `&amp;` tidak dikembalikan
+ * jadi `&`, alamatnya salah dan gambarnya gagal dimuat di browser.
+ */
+const ENTITAS: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'", '#x27': "'",
+};
+
+export const bukaEntitas = (s: string) =>
+  s.replace(/&(amp|lt|gt|quot|apos|#39|#x27);/gi, (utuh, e: string) => ENTITAS[e.toLowerCase()] ?? utuh);
+
+const meta = (html: string, prop: string) => {
+  const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)`, 'i'));
+  return m ? bukaEntitas(m[1]) : null;
+};
 
 /**
  * Lebar gambar: pakai meta og:image:width kalau ada, kalau tidak baca header berkasnya.

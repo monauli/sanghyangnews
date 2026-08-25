@@ -14,13 +14,17 @@ export const maxDuration = 60;   // batas Vercel Hobby
 async function bukaBrowser() {
   if (process.env.VERCEL) {
     const chromium = (await import('@sparticuz/chromium')).default;
-    const { launch } = await import('puppeteer-core');
-    // @sparticuz/chromium v149 hanya menyediakan args + executablePath();
-    // defaultViewport/headless sudah dibuang dari API-nya.
+    const { launch, defaultArgs } = await import('puppeteer-core');
+    /**
+     * `headless: 'shell'`, BUKAN `true`. Biner @sparticuz/chromium adalah
+     * headless_shell — versi Chromium tanpa GUI yang tidak mengenal mode
+     * "new headless" yang dinyalakan oleh `headless: true`.
+     * Pola ini disalin dari README @sparticuz/chromium.
+     */
     return launch({
-      args: chromium.args,
+      args: await defaultArgs({ args: chromium.args, headless: 'shell' }),
       executablePath: await chromium.executablePath(),
-      headless: true,
+      headless: 'shell',
     });
   }
 

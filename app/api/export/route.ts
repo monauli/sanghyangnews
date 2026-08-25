@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import { renderNewsletter, type ArtikelNewsletter } from '@/templates/newsletter';
 import { UA } from '@/config/keywords';
+import { urlAman, hasilAman } from '@/lib/urlaman';
 
 export const maxDuration = 120;
 
@@ -14,12 +15,14 @@ const ymd = /^\d{4}-\d{2}-\d{2}$/;
 async function keBase64(url: string | null): Promise<string | null> {
   if (!url) return null;
   if (url.startsWith('data:')) return url;   // hasil upload user, sudah base64
+  if (!urlAman(url)) return null;            // alamat gambar datang dari browser
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': UA, Referer: 'https://www.google.com/' },
       signal: AbortSignal.timeout(12000),
     });
     if (!res.ok) return null;
+    if (!hasilAman(res)) return null;        // redirect bisa berujung di jaringan internal
     const tipe = res.headers.get('content-type') ?? 'image/jpeg';
     if (!tipe.startsWith('image/')) return null;
     const b64 = Buffer.from(await res.arrayBuffer()).toString('base64');

@@ -5,6 +5,7 @@
  */
 import { extractFromHtml } from '@extractus/article-extractor';
 import { UA } from '@/config/keywords';
+import { urlAman, hasilAman } from './urlaman';
 
 export type ExtractResult = {
   url: string;
@@ -63,13 +64,14 @@ const meta = (html: string, prop: string) =>
 async function imageWidth(html: string, imgUrl: string): Promise<number | null> {
   const fromMeta = Number(meta(html, 'og:image:width'));
   if (fromMeta > 0) return fromMeta;
+  if (!urlAman(imgUrl)) return null;
 
   try {
     const res = await fetch(imgUrl, {
       headers: { 'User-Agent': UA, Range: 'bytes=0-65535' },
       signal: timeout(8000),
     });
-    if (!res.ok) return null;
+    if (!res.ok || !hasilAman(res)) return null;
     const b = Buffer.from(await res.arrayBuffer());
 
     if (b.length > 24 && b.toString('ascii', 1, 4) === 'PNG') return b.readUInt32BE(16);
@@ -105,12 +107,16 @@ export async function extractOne(url: string): Promise<ExtractResult> {
     attempt: 'gagal', warnings: [],
   };
 
+  if (!urlAman(url)) return { ...base, error: 'alamat tidak valid' };
+
   let html: string;
   let attempt: ExtractResult['attempt'];
   try {
     const r = await fetchHtml(url);
     attempt = r.attempt;
     if (!r.res.ok) return { ...base, attempt, error: `HTTP ${r.res.status}` };
+    // Portal berita banyak yang redirect; pastikan tidak berakhir di jaringan internal.
+    if (!hasilAman(r.res)) return { ...base, attempt, error: 'alamat akhir tidak valid' };
     html = await r.res.text();
   } catch (e) {
     return { ...base, error: (e as Error).message };

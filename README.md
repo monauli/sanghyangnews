@@ -186,6 +186,7 @@ lalu menekan **Ambil Ulang dari Link**, yang melewati resolver sepenuhnya.
 | `test-extractor.ts` | Ambil isi + gambar (jalankan `test-resolver.ts` dulu) |
 | `test-gemini.ts` | 3 ringkasan penuh + deteksi penjiplakan verbatim |
 | `test-error-paths.ts` | Portal 403, link rusak, kunci Gemini salah |
+| `test-urlaman.ts` | Penjaga SSRF — alamat internal ditolak, alamat portal diterima |
 | `test-export.ts` | Generate PDF lalu bongkar isinya (butuh `npm run dev` jalan) |
 
 ### Hal yang perlu diketahui
@@ -195,8 +196,11 @@ lalu menekan **Ambil Ulang dari Link**, yang melewati resolver sepenuhnya.
 - **`/api/export` tidak mengirim `Content-Disposition: attachment`** — download
   manager (IDM) mencegatnya dan mengembalikan 204 kosong. Nama berkas diatur
   di sisi klien lewat atribut `download`.
-- **`/api/extract` menolak alamat jaringan lokal** (localhost, 10.x, 192.168.x)
-  supaya server tidak bisa disuruh menembak jaringan internal.
+- **Semua fetch sisi server wajib lewat `lib/urlaman.ts`.** Alamat yang datang dari
+  browser (artikel di `/api/extract`, gambar di `/api/export`) diperiksa dua kali:
+  sebelum fetch, dan atas `res.url` sesudahnya — supaya redirect tidak bisa berujung
+  di jaringan internal (`169.254.169.254`, `localhost`, `10.x`, `192.168.x`, dst).
+  Route baru yang mengambil URL dari klien **harus** memakai penjaga ini.
 - **Gemini dipanggil paralel** kalau user mencentang beberapa artikel sekaligus.
   Free tier ±10 RPM; retry backoff sudah ada. Belum jadi masalah pada pemakaian
   1 newsletter/bulan.

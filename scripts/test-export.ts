@@ -1,0 +1,178 @@
+/**
+ * Uji nyata /api/export — generate PDF lalu BONGKAR ISI PDF-nya.
+ * Butuh `npm run dev` jalan. Jalankan: npx --yes tsx scripts/test-export.ts
+ */
+import { writeFileSync, statSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
+
+const ALAMAT = 'http://localhost:3000/api/export';
+const KELUAR = process.env.PDF_OUT || 'scripts/.uji-newsletter.pdf';
+const PUBLISH = '2026-06-26';
+
+const ARTIKEL = [
+  {
+    id: 'a1',
+    title: 'Exciting Banten Festival 2026 Hadir di Anyer, Dorong Pariwisata dan Ekonomi Kreatif Daerah',
+    summary:
+      'Exciting Banten Festival 2026, yang diselenggarakan Dinas Pariwisata Provinsi Banten, akan berlangsung 27-28 Juni 2026. Bertempat di kawasan Pantai Cibeureum 1, Anyer, Kabupaten Serang, festival bertajuk "Ayo Ke Banten" ini bertujuan meningkatkan kunjungan wisatawan serta memperkuat ekonomi kreatif dan UMKM daerah.\n\nSekretaris Dinas Pariwisata Provinsi Banten, Dr. Hj. Nurhayati Nufus, menjelaskan festival ini dirancang sebagai promosi wisata sekaligus pusat pelayanan publik bagi masyarakat.',
+    url: 'https://ketik.com/serang/politik-pemerintahan/exciting-banten-festival-2026-hadir-di-anyer',
+    sourceName: 'ketik.com',
+    imageUrl: 'https://picsum.photos/seed/banten/800/600',
+  },
+  {
+    id: 'a2',
+    title: 'Nikmati Keindahan Pantai Anyer dari Mövenpick Resort Carita',
+    summary:
+      'Mövenpick Resort Carita kini hadir sebagai daya tarik baru bagi pariwisata Anyer-Carita, Banten. Resor ini menawarkan 219 kamar dengan lima tipe berbeda, mulai dari Deluxe Terrace hingga Penthouse.\n\nSetiap kamar dilengkapi balkon langsung menghadap laut, memungkinkan tamu menikmati pemandangan matahari terbenam.',
+    url: 'https://travel.detik.com/travel-news/d-8552848/nikmati-keindahan-pantai-anyer',
+    sourceName: 'detikTravel',
+    imageUrl: 'https://picsum.photos/seed/carita/800/600',
+  },
+  {
+    id: 'a3',
+    title: 'Mendes PDT Siapkan Bantuan Pengembangan Desa Wisata di Banten',
+    summary:
+      'Mendes PDT Yandri Susanto akan menyiapkan bantuan afirmasi pengembangan objek desa wisata terintegrasi dengan kawasan pantai di Provinsi Banten.\n\nProgram tersebut menargetkan desa-desa di kawasan Anyer, Cinangka, Padarincang, Mancak, Ciomas, dan Pandeglang.',
+    url: 'https://mediabanten.com/mendes-pdt-siapkan-bantuan-pengembangan-desa-wisata-di-banten/',
+    sourceName: 'MediaBanten.Com',
+    imageUrl: null,
+  },
+];
+
+/** <0041> → "A" */
+const hexKeTeks = (h: string) =>
+  (h.match(/.{1,4}/g) ?? []).map((x) => String.fromCharCode(parseInt(x.padEnd(4, '0'), 16))).join('');
+
+/**
+ * Chromium men-subset font, jadi teks di PDF tersimpan sebagai indeks glyph.
+ * Peta indeks → huruf asli ada di stream /ToUnicode di dalam PDF itu sendiri.
+ */
+function bacaCMap(cmap: string, peta: Map<string, string>) {
+  for (const blok of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const p of blok[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      peta.set(p[1].toLowerCase(), hexKeTeks(p[2]));
+    }
+  }
+  for (const blok of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    for (const p of blok[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g)) {
+      const lo = parseInt(p[1], 16);
+      const hi = parseInt(p[2], 16);
+      const d = parseInt(p[3], 16);
+      for (let i = 0; i <= hi - lo && i < 65536; i++) {
+        peta.set((lo + i).toString(16).padStart(p[1].length, '0'), String.fromCharCode(d + i));
+      }
+    }
+    for (const p of blok[1].matchAll(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*\[([\s\S]*?)\]/g)) {
+      const lo = parseInt(p[1], 16);
+      [...p[3].matchAll(/<([0-9A-Fa-f]+)>/g)].forEach((it, i) =>
+        peta.set((lo + i).toString(16).padStart(p[1].length, '0'), hexKeTeks(it[1])));
+    }
+  }
+}
+
+function isiPdf(buf: Buffer) {
+  const s = buf.toString('latin1');
+
+  // 1. inflate semua stream — zlib bawaan Node, tanpa library PDF
+  const streams: string[] = [];
+  const re = /stream\r?\n/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    const mulai = m.index + m[0].length;
+    const habis = s.indexOf('endstream', mulai);
+    if (habis < 0) continue;
+    try {
+      streams.push(inflateSync(Buffer.from(s.slice(mulai, habis), 'latin1')).toString('latin1'));
+    } catch {
+      /* stream gambar, bukan teks */
+    }
+  }
+
+  // 2. bangun peta glyph
+  const peta = new Map<string, string>();
+  for (const st of streams) if (/beginbf(char|range)/.test(st)) bacaCMap(st, peta);
+
+  // 3. terjemahkan isi halaman
+  let teks = '';
+  for (const st of streams) {
+    if (!/TJ|Tj/.test(st)) continue;
+    for (const t of st.matchAll(/<([0-9A-Fa-f]+)>/g)) {
+      for (const k of t[1].toLowerCase().match(/.{1,4}/g) ?? []) {
+        teks += peta.get(k.padEnd(4, '0')) ?? '';
+      }
+    }
+  }
+
+  return {
+    teks,
+    glyph: peta.size,
+    // Link diletakkan Chromium sebagai anotasi /URI — polos, tidak terkompresi.
+    uri: [...s.matchAll(/\/URI\s*\((https?:[^)]+)\)/g)].map((x) => x[1]),
+    halaman: (s.match(/\/Type\s*\/Page[^s]/g) ?? []).length,
+    gambar: (s.match(/\/Subtype\s*\/Image/g) ?? []).length,
+    adaUrlGambarLuar: /\/(Alternate|URL)\s*\(https?:[^)]+\.(jpg|png|webp)/i.test(s),
+  };
+}
+
+const DARI_BERKAS = process.env.ARTIKEL_JSON;
+
+(async () => {
+  if (DARI_BERKAS) {
+    const { readFileSync } = await import('node:fs');
+    ARTIKEL.length = 0;
+    ARTIKEL.push(...JSON.parse(readFileSync(DARI_BERKAS, 'utf8')));
+    console.log(`  (memakai ${ARTIKEL.length} artikel nyata dari ${DARI_BERKAS})
+`);
+  }
+  const t0 = Date.now();
+  const res = await fetch(ALAMAT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ publishDate: PUBLISH, articles: ARTIKEL }),
+  });
+  if (!res.ok) {
+    console.log('  ❌ ' + JSON.stringify(await res.json().catch(() => ({}))));
+    process.exit(1);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  const detik = (Date.now() - t0) / 1000;
+  writeFileSync(KELUAR, buf);
+
+  const p = isiPdf(buf);
+  const kb = statSync(KELUAR).size / 1024;
+  const rapat = p.teks.replace(/\s+/g, ' ');
+
+  console.log('  ── BERKAS ──');
+  console.log(`  Waktu generate  : ${detik.toFixed(1)} detik`);
+  console.log(`  Ukuran          : ${kb.toFixed(0)} KB ${kb > 60 ? '✅ gambar ikut ter-embed' : '🔴 terlalu kecil, kemungkinan teks saja'}`);
+  console.log(`  Halaman         : ${p.halaman}`);
+  console.log(`  Objek gambar    : ${p.gambar}`);
+  console.log(`  Huruf terbaca   : ${p.teks.length} (dari ${p.glyph} glyph terpetakan)`);
+  console.log(`  Nama unduhan    : ${res.headers.get('content-disposition')}`);
+
+  console.log('\n  ── URL SUMBER DI DALAM PDF ──');
+  for (const a of ARTIKEL) {
+    console.log(`  ${p.uri.includes(a.url) ? '✅' : '🔴'} ${a.url.slice(0, 62)}`);
+  }
+  console.log(`  Total tautan di PDF: ${p.uri.length}`);
+
+  console.log('\n  ── TANGGAL ──');
+  const inggris = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.exec(rapat);
+  console.log(`  ${rapat.includes('Jumat, 26 Juni 2026') ? '✅' : '🔴'} "Jumat, 26 Juni 2026" ada di dalam PDF`);
+  console.log(`  ${inggris ? `🔴 ADA NAMA HARI/BULAN INGGRIS: ${inggris[0]}` : '✅ Tidak ada nama hari/bulan Inggris'}`);
+
+  console.log('\n  ── ISI ──');
+  const cek: [string, boolean][] = [
+    ['Judul "Sanghyang Highlights"', rapat.includes('Sanghyang Highlights')],
+    ['Merek "Sanghyangresort"', rapat.includes('Sanghyangresort')],
+    ['Footer www.sanghyang.com', rapat.includes('www.sanghyang.com')],
+    ['Ejaan "Mövenpick" (umlaut) utuh', rapat.includes('Mövenpick')],
+    ['Judul artikel 1', rapat.includes('Exciting Banten Festival 2026 Hadir di Anyer')],
+    ['Judul artikel 3', rapat.includes('Mendes PDT Siapkan Bantuan')],
+    ['Tidak ada URL gambar eksternal', !p.adaUrlGambarLuar],
+  ];
+  for (const [nama, ok] of cek) console.log(`  ${ok ? '✅' : '🔴'} ${nama}`);
+
+  console.log(`\n  → ${KELUAR}`);
+  console.log(`  Cuplikan teks PDF: "${rapat.slice(0, 130)}…"`);
+})();

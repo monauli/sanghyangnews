@@ -14,6 +14,7 @@ const HARUS_HILANG = ['tulungagung', 'sungai serang', 'larung sedekah', 'cipondo
   console.log('  ── [1] FILTER ──');
   console.log(`  Mentah                : ${stats.raw}`);
   console.log(`  Unik                  : ${stats.unique}`);
+  console.log(`  ➖ Portal iklan        : ${stats.droppedSumber}`);
   console.log(`  ➖ Blacklist           : ${stats.droppedBlacklist}`);
   console.log(`  ➖ Regional (luar jangkauan) : ${stats.droppedRegional}`);
   console.log(`  ➖ Lokasi tak di judul : ${stats.droppedLocation}`);

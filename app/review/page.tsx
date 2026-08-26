@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StepIndicator from '../components/StepIndicator';
 import ArticleCard, { kerjaBaru, type Kerja } from './ArticleCard';
 import { KUNCI, JUDUL_GRUP, grupOf, type Grup, type UiArticle, type ArtikelTerpilih } from '@/lib/ui';
 import { cekJiplakan } from '@/lib/jiplak';
+import { batasi } from '@/lib/antre';
 
 const URUTAN_GRUP: Grup[] = ['utama', 'lain', 'kurang'];
 
@@ -19,6 +20,14 @@ async function kirim<T>(jalur: string, body: unknown): Promise<T> {
   if (!res.ok) throw new Error(data?.error ?? `Gagal (${res.status})`);
   return data as T;
 }
+
+/**
+ * 3, bukan 4. Gemini free tier ~10 permintaan/menit dan satu ringkasan makan
+ * 10-40 detik: 3 slot ≈ 5-18 permintaan/menit, masih di bawah limit untuk
+ * artikel panjang. 4 slot menembusnya begitu artikelnya pendek-pendek —
+ * hasilnya 429, backoff 2-4 detik, dan malah lebih lambat dari 3.
+ */
+const gerbang = batasi(3);
 
 export default function HalamanReview() {
   const router = useRouter();
@@ -50,6 +59,11 @@ export default function HalamanReview() {
     return g;
   }, [artikel]);
 
+  // Pekerjaan yang mengantre bisa baru jalan puluhan detik kemudian — saat itu
+  // `kerja` dari closure sudah basi. Ref-nya selalu yang terkini.
+  const kerjaRef = useRef(kerja);
+  kerjaRef.current = kerja;
+
   const ubah = (id: string, k: Partial<Kerja>) =>
     setKerja((s) => ({ ...s, [id]: { ...(s[id] ?? kerjaBaru()), ...k } }));
 
@@ -61,12 +75,23 @@ export default function HalamanReview() {
     });
 
   /**
+   * Beberapa artikel boleh jalan bersamaan, tapi dijaga `gerbang` supaya tidak
+   * menghajar kuota Gemini. Tiap kartu tetap memperbarui progresnya sendiri.
+   */
+  async function proses(a: UiArticle, mulaiDari: 'resolve' | 'extract' | 'summarize' = 'resolve') {
+    await gerbang(
+      () => jalankan(a, mulaiDari),
+      () => ubah(a.id, { tahap: 'antre', galat: {} }),
+    );
+  }
+
+  /**
    * resolve → extract → summarize, satu artikel, progres kelihatan tiap tahap.
    * `mulaiDari` = 'extract' dipakai kalau user mengisi alamat beritanya sendiri —
    * resolve dilewati karena link Google-nya memang tidak bisa dipakai.
    */
-  async function proses(a: UiArticle, mulaiDari: 'resolve' | 'extract' | 'summarize' = 'resolve') {
-    const kini = () => kerja[a.id] ?? kerjaBaru();
+  async function jalankan(a: UiArticle, mulaiDari: 'resolve' | 'extract' | 'summarize') {
+    const kini = () => kerjaRef.current[a.id] ?? kerjaBaru();
     let url = kini().finalUrl;
     let teks = kini().fullText;
 
@@ -139,7 +164,8 @@ export default function HalamanReview() {
     }
     setPilihan((p) => [...p, a.id]);
     setTerbuka(a.id);
-    if ((kerja[a.id] ?? kerjaBaru()).tahap === 'kosong') proses(a);
+    // Ref, bukan state: centang beruntun bisa dibatch React dan `kerja` jadi basi.
+    if ((kerjaRef.current[a.id] ?? kerjaBaru()).tahap === 'kosong') proses(a);
   }
 
   const terpilih = (artikel ?? []).filter((a) => pilihan.includes(a.id));
@@ -156,7 +182,7 @@ export default function HalamanReview() {
       const k = kerja[a.id]!;
       return {
         id: a.id,
-        title: k.judul ?? a.title,
+        title: a.title,          // sudah lewat judulBersih() di toUi(), bukan judul mentah RSS
         summary: k.summary!.trim(),
         url: k.finalUrl!,
         sourceName: a.sourceName,

@@ -88,6 +88,21 @@ export const REGIONAL_BLACKLIST = [
   'bsd', 'lebak', 'rangkasbitung',
 ];
 
+/**
+ * Portal iklan & marketplace. Dicek di DOMAIN sumber (atribut url pada <source>),
+ * BUKAN judul: "DIJUAL PONDOK TUBAGUS RESORT / VILLA at PANTAI CARITA ANYER"
+ * dari Rumah123 lolos skoring karena kata "resort" + lokasi Carita/Anyer.
+ * Terpisah dari BLACKLIST supaya alasan pembuangannya bisa dilaporkan sendiri.
+ *
+ * Pola judul ("dijual", "disewakan") sengaja TIDAK dipakai — di data Juli 2026
+ * satu-satunya judul non-marketplace yang kena adalah berita sah:
+ * "Hotel The Royale Krakatau Cilegon Dijual, PT KSI Diminta Fokus…".
+ */
+export const SUMBER_BLACKLIST = [
+  'rumah123', 'olx', 'lamudi', '99.co', 'tokopedia', 'shopee', 'bukalapak',
+  'travelio', 'airbnb', 'agoda', 'booking.com', 'tiket.com', 'traveloka',
+];
+
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';

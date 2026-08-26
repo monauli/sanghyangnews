@@ -1,8 +1,8 @@
 /**
  * Filter lokal (BACKEND.md §6). Gratis, instan, tidak makan kuota API.
- * Urutan: dedupe antar query → blacklist → lokasi wajib di judul → tandai mirip.
+ * Urutan: dedupe antar query → portal iklan → blacklist → lokasi wajib di judul → tandai mirip.
  */
-import { BLACKLIST, REGIONAL_BLACKLIST, LOC_KEYS } from '@/config/keywords';
+import { BLACKLIST, REGIONAL_BLACKLIST, SUMBER_BLACKLIST, LOC_KEYS } from '@/config/keywords';
 import { DUPE_THRESHOLD } from '@/config/thresholds';
 import type { RawArticle } from './googlenews';
 
@@ -16,6 +16,7 @@ export type FilteredArticle = RawArticle & {
 export type FilterStats = {
   raw: number;
   unique: number;
+  droppedSumber: number;
   droppedBlacklist: number;
   droppedRegional: number;
   droppedLocation: number;
@@ -37,6 +38,18 @@ export function idOf(link: string): string {
  * mencocokkan nama portalnya, bukan isi beritanya.
  */
 export const bareTitle = (t: string) => norm(t).replace(/ - [^-]+$/, '');
+
+/**
+ * Portal iklan? Cocokkan per label domain, jangan substring mentah —
+ * "olx" sebagai substring juga kena "polxpress.com".
+ */
+function sumberIklan(sourceUrl: string, sourceName: string): boolean {
+  let host: string;
+  try { host = new URL(sourceUrl).hostname.toLowerCase(); }
+  catch { host = sourceName.toLowerCase().replace(/\s+/g, ''); }   // RSS lama tanpa atribut url
+  return SUMBER_BLACKLIST.some((d) =>
+    host === d || host.startsWith(d + '.') || host.endsWith('.' + d) || host.includes('.' + d + '.'));
+}
 
 function titleWords(title: string): Set<string> {
   return new Set(bareTitle(title).split(/[^a-z0-9]+/).filter((w) => w.length > 3));
@@ -60,7 +73,10 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
   }
   const unique = [...seen.values()];
 
-  // 2, 3 & 4. Blacklist (judul+desc) → regional (judul) → lokasi wajib di JUDUL.
+  // 2-5. Portal iklan (domain) → blacklist (judul+desc) → regional (judul) → lokasi wajib di JUDUL.
+  // Portal iklan dicek DULUAN: iklan properti sering memuat lokasi & kata "resort"
+  // di judulnya, jadi kalau ditaruh belakangan ia lolos semua saringan lain.
+  let droppedSumber = 0;
   let droppedBlacklist = 0;
   let droppedRegional = 0;
   let droppedLocation = 0;
@@ -68,6 +84,7 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
   for (const it of unique) {
     const title = bareTitle(it.title);
     const hay = norm(it.title + ' ' + it.desc);
+    if (sumberIklan(it.sourceUrl, it.sourceName)) { droppedSumber++; continue; }
     if (BLACKLIST.some((b) => hay.includes(b))) { droppedBlacklist++; continue; }
     if (REGIONAL_BLACKLIST.some((r) => title.includes(r))) { droppedRegional++; continue; }
     const loc = LOC_KEYS.find((l) => title.includes(l));
@@ -91,6 +108,6 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
 
   return {
     articles: kept,
-    stats: { raw: raw.length, unique: unique.length, droppedBlacklist, droppedRegional, droppedLocation, kept: kept.length, duped },
+    stats: { raw: raw.length, unique: unique.length, droppedSumber, droppedBlacklist, droppedRegional, droppedLocation, kept: kept.length, duped },
   };
 }

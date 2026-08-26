@@ -1,12 +1,11 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { badge, tanggalPendek, type UiArticle } from '@/lib/ui';
 import { cekJiplakan } from '@/lib/jiplak';
 
 export type Kerja = {
-  tahap: 'kosong' | 'resolve' | 'extract' | 'summarize' | 'siap';
-  judul: string | null;      // null = pakai judul asli
+  tahap: 'kosong' | 'antre' | 'resolve' | 'extract' | 'summarize' | 'siap';
   finalUrl: string | null;
   fullText: string | null;
   imageUrl: string | null;
@@ -17,12 +16,13 @@ export type Kerja = {
 };
 
 export const kerjaBaru = (): Kerja => ({
-  tahap: 'kosong', judul: null, finalUrl: null, fullText: null, imageUrl: null,
+  tahap: 'kosong', finalUrl: null, fullText: null, imageUrl: null,
   summary: null, targetKata: null, warnings: [], galat: {},
 });
 
 const PESAN_TAHAP: Record<Kerja['tahap'], string> = {
   kosong: '',
+  antre: 'Menunggu giliran…',
   resolve: 'Mengambil link…',
   extract: 'Membaca artikel…',
   summarize: 'Merangkum… (biasanya 10-40 detik)',
@@ -32,6 +32,18 @@ const PESAN_TAHAP: Record<Kerja['tahap'], string> = {
 const MAKS_UPLOAD = 5 * 1024 * 1024;
 
 const hitungKata = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+
+/** Domain tetap utuh di depan, ekor alamatnya yang dipotong. */
+function pendekUrl(u: string): string {
+  try {
+    const { hostname, pathname } = new URL(u);
+    const h = hostname.replace(/^www\./, '');
+    const p = pathname.replace(/\/+$/, '');
+    return p.length > 42 ? h + p.slice(0, 41) + '…' : h + p;
+  } catch {
+    return u;
+  }
+}
 
 type Props = {
   artikel: UiArticle;
@@ -53,6 +65,7 @@ export default function ArticleCard({
   onToggle, onBuka, onUbah, onUlangi, onAmbilUlang, onBuatUlangRingkasan,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [ubahLink, setUbahLink] = useState(false);
   const sibuk = kerja.tahap !== 'kosong' && kerja.tahap !== 'siap';
   const adaGalat = Object.values(kerja.galat).some(Boolean);
   const jiplak = cekJiplakan(kerja.summary ?? '', kerja.fullText);
@@ -93,7 +106,7 @@ export default function ArticleCard({
 
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug text-gray-900">
-            <span className="text-gray-400">{nomor}.</span> {kerja.judul ?? artikel.title}
+            <span className="text-gray-400">{nomor}.</span> {artikel.title}
           </p>
           <p className="mt-1 text-sm text-gray-500">
             {artikel.sourceName} · {tanggalPendek(artikel.pubDate)}
@@ -143,24 +156,43 @@ export default function ArticleCard({
 
       {dipilih && terbuka && (
         <div className="flex flex-col gap-4 border-t border-gray-100 bg-gray-50 p-4">
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Judul
-            <input
-              value={kerja.judul ?? artikel.title}
-              onChange={(e) => onUbah({ judul: e.target.value })}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal text-gray-900"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          {/* Jalur isi-sendiri WAJIB tetap ada — kalau resolve gagal, ini satu-satunya
+              cara user memberi alamat berita. Cukup disembunyikan di balik "Ubah",
+              dan terbuka otomatis selama alamatnya memang belum ada. */}
+          <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             Link sumber
-            <input
-              value={kerja.finalUrl ?? ''}
-              onChange={(e) => onUbah({ finalUrl: e.target.value, galat: { ...kerja.galat, resolve: undefined } })}
-              placeholder="https://…"
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal text-gray-900"
-            />
-          </label>
+            {kerja.finalUrl ? (
+              <div className="flex items-center gap-2">
+                <a
+                  href={kerja.finalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 truncate font-normal text-green-800 underline hover:text-green-900"
+                >
+                  {pendekUrl(kerja.finalUrl)}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setUbahLink((v) => !v)}
+                  className="shrink-0 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 hover:border-green-800 hover:text-green-900"
+                >
+                  {ubahLink ? 'Tutup' : 'Ubah'}
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs font-normal text-amber-800">
+                Belum ada. Buka beritanya, salin alamatnya, tempel di sini.
+              </span>
+            )}
+            {(ubahLink || !kerja.finalUrl) && (
+              <input
+                value={kerja.finalUrl ?? ''}
+                onChange={(e) => onUbah({ finalUrl: e.target.value, galat: { ...kerja.galat, resolve: undefined } })}
+                placeholder="https://…"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 font-normal text-gray-900"
+              />
+            )}
+          </div>
 
           {/* DI ATAS Ringkasan, bukan di dasar panel. Sebelumnya kotak ini terkubur
               di bawah pengaturan gambar, sementara kotak Ringkasan besar dan menonjol

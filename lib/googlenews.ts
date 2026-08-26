@@ -10,6 +10,7 @@ export type RawArticle = {
   pubDate: string;    // YYYY-MM-DD saja. Jam sengaja dibuang, lihat catatan di bawah.
   desc: string;
   sourceName: string;
+  sourceUrl: string;  // dari atribut url pada <source> — dipakai menyaring portal iklan
   query: string;      // query yang menemukannya
 };
 
@@ -56,6 +57,7 @@ export function parseRss(xml: string): Omit<RawArticle, 'query'>[] {
       pubDate: dateOnly(pick('pubDate')),
       desc: pick('description'),
       sourceName: pick('source'),
+      sourceUrl: (b.match(/<source[^>]*url="([^"]*)"/) ?? [])[1] ?? '',
     };
   });
 }

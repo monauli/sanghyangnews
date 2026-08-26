@@ -71,15 +71,21 @@ const cek = (ok: boolean, label: string) => {
       cek((e as Error).message === 'alamat tidak diizinkan', `${ket.padEnd(20)} → fetchAman melempar`);
     }
   }
-  // Nama acak = dijamin belum di cache, jadi butuh perjalanan jaringan (puluhan ms).
-  // Dengan batas 1 ms, yang menang pasti pembatas waktunya — bukan balapan cache.
+  // Nama acak = dijamin belum di cache, jadi butuh perjalanan jaringan.
+  // Dengan batas 1 ms, biasanya pembatas waktu yang menang — TAPI resolver OS
+  // kadang membalas NXDOMAIN lebih cepat dari 1 ms. Dua-duanya sama-sama benar:
+  // yang WAJIB dijamin adalah ia MELEMPAR, bukan diam-diam mengembalikan alamat.
+  // Dulu di sini dicocokkan teks pesannya, dan ujinya jadi merah acak-acakan.
   const acak = `${Math.random().toString(36).slice(2)}.ketik.com`;
+  let melempar = false;
+  let pesan = '(tidak melempar)';
   try {
     await lookupBerbatas(acak, 1);
-    cek(false, 'DNS kehabisan waktu  → TIDAK melempar!');
   } catch (e) {
-    cek((e as Error).message === 'DNS kehabisan waktu', `DNS kehabisan waktu  → "${(e as Error).message}"`);
+    melempar = true;
+    pesan = (e as Error).message;
   }
+  cek(melempar, `DNS batas 1 ms       → melempar, tidak mengembalikan alamat ("${pesan}")`);
   cek(!(await alamatAman(`https://${acak}/berita`, 1)), 'DNS kehabisan waktu  → alamatAman menolak');
   cek(await alamatAman('https://ketik.com/berita'), 'DNS normal           → tetap diterima');
 

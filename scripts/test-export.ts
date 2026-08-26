@@ -23,7 +23,10 @@ const ARTIKEL = [
       'Exciting Banten Festival 2026, yang diselenggarakan Dinas Pariwisata Provinsi Banten, akan berlangsung 27-28 Juni 2026. Bertempat di kawasan Pantai Cibeureum 1, Anyer, Kabupaten Serang, festival bertajuk "Ayo Ke Banten" ini bertujuan meningkatkan kunjungan wisatawan serta memperkuat ekonomi kreatif dan UMKM daerah.\n\nSekretaris Dinas Pariwisata Provinsi Banten, Dr. Hj. Nurhayati Nufus, menjelaskan festival ini dirancang sebagai promosi wisata sekaligus pusat pelayanan publik bagi masyarakat.',
     url: 'https://ketik.com/serang/politik-pemerintahan/exciting-banten-festival-2026-hadir-di-anyer',
     sourceName: 'ketik.com',
-    imageUrl: 'https://picsum.photos/seed/banten/800/600',
+    // Sengaja TANPA gambar dan ditaruh paling depan: ini kasus yang diminta —
+    // artikel pertama lebar penuh, lalu gambar artikel berikutnya harus jatuh
+    // di KIRI (giliran pertama), bukan kanan.
+    imageUrl: null,
   },
   {
     id: 'a2',
@@ -207,6 +210,9 @@ const DARI_BERKAS = process.env.ARTIKEL_JSON;
     ['Artikel jalur manual ikut ke PDF', rapat.includes('Badan Musyawarah Perhimpunan Pariwisata')],
     ['Judul artikel jalur manual', rapat.includes('BMPP Siap Kolaborasi dengan Pemkab Serang')],
     ['Link sumber artikel jalur manual', rapat.includes('kabarbanten.pikiran-rakyat.com')],
+    // Artikel tanpa gambar: slotnya dibuang, bukan diisi kotak abu-abu.
+    ['Tidak ada kotak "tanpa gambar"', !/tanpa gambar/i.test(rapat)],
+    ['Cuma 1 objek gambar (3 dari 4 artikel tanpa gambar)', p.gambar === 1],
     ['Footer www.sanghyang.com', rapat.includes('www.sanghyang.com')],
     ['Ejaan "Mövenpick" (umlaut) utuh', rapat.includes('Mövenpick')],
     ['Judul artikel 1', rapat.includes('Exciting Banten Festival 2026 Hadir di Anyer')],

@@ -287,19 +287,28 @@ export default function HalamanReview() {
         </section>
       ))}
 
-      <div className="sticky bottom-4 mt-4 flex flex-col items-center gap-2">
+      {/* pointer-events-none WAJIB di kontainer ini.
+          Kotaknya selebar halaman dan transparan, sementara tombolnya cuma
+          selebar teks di tengah. Tanpa ini, seluruh pita di dasar layar
+          menelan klik yang tidak kelihatan penyebabnya — tombol di panel edit
+          yang kebetulan tergulir ke pita itu jadi mati total, dan staf
+          mengira aplikasinya rusak.
+          Yang benar-benar bisa diklik dikembalikan satu per satu. */}
+      <div className="pointer-events-none sticky bottom-4 mt-4 flex flex-col items-center gap-2">
         {pesanSimpan && (
-          <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-800">{pesanSimpan}</p>
+          <p className="pointer-events-auto rounded-lg bg-red-50 px-4 py-2 text-sm text-red-800 shadow-sm">{pesanSimpan}</p>
         )}
         {terpilih.length > 0 && belumSiap.length > 0 && (
-          <p className="rounded-lg bg-white px-4 py-2 text-sm text-gray-600 shadow-sm">
+          <p className="pointer-events-auto rounded-lg bg-white px-4 py-2 text-sm text-gray-600 shadow-sm ring-1 ring-gray-200">
             {belumSiap.length} berita terpilih belum siap — perlu ringkasan dan link sumber.
           </p>
         )}
+        {/* ring putih tebal: tombol melayang di atas teks, jadi harus terbaca
+            sebagai lapisan terpisah — bukan seperti teks yang terpotong. */}
         <button
           onClick={lanjut}
           disabled={!bisaLanjut}
-          className="rounded-lg bg-green-800 px-8 py-3 font-semibold text-white shadow-lg hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
+          className="pointer-events-auto rounded-lg bg-green-800 px-8 py-3 font-semibold text-white shadow-lg ring-4 ring-white hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
         >
           Buat Newsletter ({terpilih.length})
         </button>

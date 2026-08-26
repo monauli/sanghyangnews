@@ -62,10 +62,6 @@ const GAYA = `
     width: 68mm; height: 46mm; flex: 0 0 68mm;
     object-fit: cover; border-radius: 2mm; background: #e5e7eb;
   }
-  .artikel .kosong {
-    display: flex; align-items: center; justify-content: center;
-    font-size: 9pt; color: #9ca3af;
-  }
   .artikel .teks { flex: 1 1 auto; min-width: 0; }
   /* Sengaja jauh lebih kecil dari judulnya — penanda urutan, bukan headline. */
   .artikel .nomor {
@@ -88,10 +84,15 @@ const GAYA = `
   }
 `;
 
-function satuArtikel(a: ArtikelNewsletter, i: number): string {
-  const gambar = a.imageUrl
-    ? `<img class="gambar" src="${esc(a.imageUrl)}" alt="">`
-    : `<div class="gambar kosong">tanpa gambar</div>`;
+/**
+ * @param nomor  urutan tampil, dipakai penanda "Berita N"
+ * @param balik  gambar dipindah ke kanan. Hanya relevan kalau artikelnya bergambar.
+ */
+function satuArtikel(a: ArtikelNewsletter, nomor: number, balik: boolean): string {
+  // Tanpa gambar: slotnya DIBUANG, bukan diisi kotak abu-abu bertuliskan
+  // "tanpa gambar" — itu terbaca seperti error, bukan pilihan desain.
+  // .teks sudah flex:1, jadi begitu img hilang teksnya otomatis selebar penuh.
+  const gambar = a.imageUrl ? `<img class="gambar" src="${esc(a.imageUrl)}" alt="">` : '';
   const paragraf = a.summary
     .split(/\n\s*\n/)
     .map((p) => p.trim())
@@ -100,10 +101,10 @@ function satuArtikel(a: ArtikelNewsletter, i: number): string {
     .join('');
 
   return `
-    <article class="artikel${i % 2 === 1 ? ' balik' : ''}">
+    <article class="artikel${balik ? ' balik' : ''}">
       ${gambar}
       <div class="teks">
-        <div class="nomor">Berita ${i + 1}</div>
+        <div class="nomor">Berita ${nomor}</div>
         <h2>${esc(a.title)}</h2>
         ${paragraf}
         <a class="sumber" href="${esc(a.url)}">${esc(a.url)}</a>
@@ -138,7 +139,15 @@ export function renderNewsletter(
     <div class="baris2">Stay connected with the latest news and updates</div>
   </div>
   <div class="isi">
-    ${articles.map(satuArtikel).join('')}
+    ${(() => {
+      // Selang-seling kiri/kanan dihitung HANYA dari artikel bergambar.
+      // Artikel tanpa gambar tidak punya sisi, jadi kalau ikut dihitung ia
+      // "memakai giliran" dan gambar berikutnya lompat ke sisi yang salah.
+      let bergambar = 0;
+      return articles
+        .map((a, i) => satuArtikel(a, i + 1, a.imageUrl ? bergambar++ % 2 === 1 : false))
+        .join('');
+    })()}
   </div>
   <div class="kaki">www.sanghyang.com</div>
 </body>

@@ -246,7 +246,12 @@ Jangan dipaksa. Tampilkan opsi input manual.
 
 ## 9. Modul: Gemini (`lib/gemini.ts`)
 
-**Model:** `gemini-2.5-flash` · **SDK:** `@google/genai` · **Env:** `GEMINI_API_KEY`
+**Model:** dari env `GEMINI_MODEL`, default `gemini-3.5-flash-lite` · **SDK:** `@google/genai` · **Env:** `GEMINI_API_KEY`, `GEMINI_MODEL`
+
+> Kuota free tier terukur sendiri (angka resmi Google tidak cocok dengan akun ini):
+> `gemini-2.5-flash` 20/hari + 10/menit · `gemini-3.5-flash-lite` 15/menit, kuotanya
+> terpisah per model. `gemini-2.5-flash-lite` membalas 404 walau masih terdaftar.
+> Ukur ulang dengan `scripts/test-kuota.ts <model>`.
 
 > ⚠️ Bagian ini **belum diuji**. Sepanjang riset, Gemini belum pernah dipanggil. Kualitas ringkasan baru ketahuan saat implementasi.
 

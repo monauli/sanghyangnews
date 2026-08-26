@@ -34,6 +34,38 @@ cek(cekJiplakan(RINGKASAN_SAH, null).aman, 'tidak ada artikel pembanding');
 cek(cekJiplakan('Ditulis sendiri oleh staff tanpa menyalin apa pun dari sumber mana pun.', ASLI).aman,
   'tulisan tangan staff');
 
+console.log('\n  ── KUTIPAN SAH TIDAK BOLEH JADI ALARM PALSU ──');
+// Kutipan pejabat 16 kata, berpetik + atribusi — persis kasus yang bikin alarm palsu.
+const KUTIPAN = ASLI.slice(ASLI.indexOf('Kepala Dinas'), ASLI.indexOf('Program tersebut'));
+const RINGKASAN_BERKUTIP =
+  'Kawasan pesisir Anyer dibenahi Pemkab Serang tahun ini. "' + KUTIPAN.trim() + '" ujarnya. ' +
+  'Langkah itu menyasar lima desa dan melibatkan pengelola penginapan setempat, ' +
+  'dengan sasaran wisatawan tinggal lebih lama di kawasan tersebut.';
+const berkutip = cekJiplakan(RINGKASAN_BERKUTIP, ASLI);
+console.log(`  rentang ${berkutip.rentang} kata (isi kutipan dikecualikan)`);
+cek(berkutip.aman, 'ringkasan dengan satu kutipan panjang berpetik tetap lolos');
+cek(rentangTerpanjang(RINGKASAN_BERKUTIP, ASLI) < rentangTerpanjang(RINGKASAN_BERKUTIP.replace(/"/g, ''), ASLI),
+  'tanpa petik, rentang yang sama terhitung lebih panjang');
+
+console.log('\n  ── KUTIPAN PALSU HARUS TETAP TERHITUNG ──');
+// Kasus nyata: kalimat NARASI wartawan disalin persis lalu diberi tanda kutip,
+// tanpa siapa pun yang mengucapkannya. Tanpa syarat atribusi, ini terbaca 0.
+const NARASI = ASLI.slice(ASLI.indexOf('Program tersebut'), ASLI.indexOf('Selain penataan'));
+const PALSU = 'Pemkab Serang membenahi pesisir Anyer. "' + NARASI.trim() + '" Anggarannya belum diumumkan.';
+const rentangPalsu = rentangTerpanjang(PALSU, ASLI);
+console.log(`  kutipan tanpa atribusi → rentang ${rentangPalsu} kata`);
+cek(rentangPalsu >= 8, 'salinan berpetik TANPA atribusi tetap terhitung');
+cek(rentangTerpanjang(RINGKASAN_BERKUTIP, ASLI) === 0, 'salinan berpetik DENGAN atribusi tetap dikecualikan');
+
+console.log('\n  ── LUBANG: MENGUTIP SEMUANYA ──');
+const semuaDikutip = cekJiplakan('"' + ASLI + '"', ASLI);
+cek(!semuaDikutip.aman, 'seluruh artikel di dalam tanda kutip TETAP diblokir');
+console.log(`  alasan: ${semuaDikutip.alasan}`);
+// Versi licik: dibungkus kutip DAN diberi atribusi supaya lolos pengecualian.
+const semuaDikutipBeratribusi = cekJiplakan('Menurut laporan itu, "' + ASLI + '"', ASLI);
+cek(!semuaDikutipBeratribusi.aman, 'dibungkus kutip + atribusi pun tetap diblokir (penjaga >50%)');
+console.log(`  alasan: ${semuaDikutipBeratribusi.alasan}`);
+
 console.log('\n  ── ANGKA ──');
 const sah = cekJiplakan(RINGKASAN_SAH, ASLI);
 const jiplak = cekJiplakan(ASLI, ASLI);

@@ -151,6 +151,14 @@ APP_PASSWORD=sandi-bersama
 ini aplikasi tetap jalan, tapi ringkasan otomatis gagal dan UI menampilkan textarea
 kosong dengan pesan "Silakan tulis manual".
 
+`GEMINI_MODEL` — opsional, default `gemini-3.5-flash-lite`. Ada supaya modelnya bisa
+diganti dari dashboard Vercel tanpa deploy ulang, karena kuota gratis tiap model
+beda-beda dan angka resminya tidak bisa dipercaya. Ukur sendiri:
+`npx --yes tsx scripts/test-kuota.ts <nama-model>`. Terukur di akun ini —
+`gemini-2.5-flash` **20 permintaan per hari** (terlalu sedikit),
+`gemini-3.5-flash-lite` 15 per menit dengan kuota terpisah.
+Jangan pakai `gemini-2.5-flash-lite`: masih terdaftar tapi membalas 404.
+
 `APP_PASSWORD` — sandi bersama untuk masuk. **Wajib diisi.** Kalau kosong, `proxy.ts`
 mengunci seluruh aplikasi (semua halaman dan semua `/api/*` dijawab 503). Fail-closed
 disengaja: salah setel di dashboard tidak boleh berarti pintu terbuka untuk umum.
@@ -173,6 +181,7 @@ Environment variable yang harus diisi di dashboard Vercel:
 | Variable | Nilai |
 |---|---|
 | `GEMINI_API_KEY` | kunci Gemini |
+| `GEMINI_MODEL` | opsional — kosongkan untuk `gemini-3.5-flash-lite` |
 | `APP_PASSWORD` | sandi bersama |
 | `PUPPETEER_SKIP_DOWNLOAD` | `true` |
 

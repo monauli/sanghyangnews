@@ -9,7 +9,8 @@ import { filterArticles } from '../lib/filter';
 import { scoreArticles } from '../lib/scoring';
 import { resolveMany } from '../lib/resolver';
 import { extractOne } from '../lib/extractor';
-import { summarizeOne } from '../lib/gemini';
+import { summarizeOne, model } from '../lib/gemini';
+import { buangKutipan } from '../lib/jiplak';
 
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 
@@ -28,7 +29,9 @@ const bersihkan = (s: string) => kata(s.toLowerCase().replace(/[^\p{L}\p{N}\s]/g
  * Tiap rentang dilaporkan sekali dengan panjang sebenarnya.
  */
 function rentangSalinan(ringkasan: string, asli: string, n = 8) {
-  const a = bersihkan(ringkasan);
+  // Isi kutipan berpetik dikecualikan — aturan 5 mengizinkannya, dan kalau ikut
+  // dihitung tiap kutipan sah jadi alarm palsu. Sama seperti lib/jiplak.ts.
+  const a = bersihkan(buangKutipan(ringkasan));
   const b = bersihkan(asli);
   const indeks = new Set<string>();
   for (let i = 0; i + n <= b.length; i++) indeks.add(b.slice(i, i + n).join(' '));
@@ -43,6 +46,18 @@ function rentangSalinan(ringkasan: string, asli: string, n = 8) {
     i = akhir;
   }
   return out.sort((x, y) => y.panjang - x.panjang);
+}
+
+/**
+ * Berapa kata pertama ringkasan yang sama persis dengan kata pertama artikel.
+ * Aturan 1 di prompt melarang memulai dari kalimat pembuka sumber.
+ */
+function pembukaSama(ringkasan: string, asli: string): number {
+  const a = bersihkan(ringkasan);
+  const b = bersihkan(asli);
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
 }
 
 (async () => {
@@ -60,6 +75,7 @@ function rentangSalinan(ringkasan: string, asli: string, n = 8) {
     return a ? { label, a } : null;
   }).filter((x) => x !== null);
 
+  console.log(`  Model           : ${model()}`);
   console.log(`  Artikel terpilih: ${pilihan.map((p) => p.label).join(', ')}\n`);
 
   const resolved = await resolveMany(pilihan.map((p) => p.a.link));
@@ -100,9 +116,20 @@ function rentangSalinan(ringkasan: string, asli: string, n = 8) {
     r.dibuangSanitizer.forEach((b) => console.log(`                ✂️  "${b.slice(0, 90)}"`));
 
     const total = rentang.reduce((n, x) => n + x.panjang, 0);
-    console.log(`  Rentang verbatim >=8 kata : ${rentang.length} buah, terpanjang ${rentang[0]?.panjang ?? 0} kata`);
+    const mentah = rentangSalinan(r.summary.replace(/["“”]/g, ''), ex.fullText);
+    console.log(`  Rentang verbatim >=8 kata : ${rentang.length} buah, terpanjang ${rentang[0]?.panjang ?? 0} kata  (kutipan dikecualikan)`);
+    console.log(`   pembanding tanpa pengecualian : terpanjang ${mentah[0]?.panjang ?? 0} kata`);
     console.log(`  Total kata terjiplak      : ${total}/${jml} (${Math.round((total / jml) * 100)}%)`);
     rentang.slice(0, 4).forEach((x) => console.log(`   ${String(x.panjang).padStart(2)} kata: "${x.teks}"`));
+
+    const pembuka = pembukaSama(r.summary, ex.fullText);
+    console.log(`  Menyalin kalimat pembuka  : ${pembuka >= 8 ? `🔴 ${pembuka} kata pertama sama` : `✅ tidak (cocok ${pembuka} kata pertama saja)`}`);
+    console.log(`   awal sumber   : "${bersihkan(ex.fullText).slice(0, 16).join(' ')}…"`);
+    console.log(`   awal ringkasan: "${bersihkan(r.summary).slice(0, 16).join(' ')}…"`);
+
+    // Dibaca manual untuk cek kalimat karangan & ejaan institusi — tidak bisa diotomatiskan.
+    console.log('\n  ── SUMBER (600 kata pertama, untuk cek fakta) ──');
+    console.log('  ' + kata(ex.fullText).slice(0, 600).join(' ').replace(/(.{110}\s)/g, '$1\n  '));
     console.log('');
   }
 

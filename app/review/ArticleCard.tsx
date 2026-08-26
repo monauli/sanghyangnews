@@ -12,7 +12,7 @@ export type Kerja = {
   summary: string | null;
   targetKata: [number, number] | null;
   warnings: string[];
-  galat: { resolve?: string; extract?: string; summarize?: string; sumber?: string };
+  galat: { resolve?: string; extract?: string; summarize?: string; sumber?: string; kuota?: string };
 };
 
 export const kerjaBaru = (): Kerja => ({
@@ -326,22 +326,27 @@ export default function ArticleCard({
 }
 
 function Galat({ kerja, onUlangi }: { kerja: Kerja; onUlangi: () => void }) {
-  const { resolve, extract, summarize } = kerja.galat;
-  const { sumber } = kerja.galat;
+  const { resolve, extract, summarize, sumber, kuota } = kerja.galat;
+  // `kuota` sudah berupa kalimat siap tampil dari lib/gemini.ts — dipakai apa
+  // adanya supaya staf tahu bedanya "tunggu sebentar" dan "coba lagi besok".
   const pesan = resolve
     ? 'Link belum bisa dipastikan.'
     : extract
       ? 'Situs ini tidak bisa dibaca otomatis.'
       : sumber
         ? 'Belum ada isi artikel untuk diringkas.'
-        : summarize
-          ? 'Gagal merangkum. Silakan tulis manual.'
-          : 'Gagal memuat.';
+        : kuota
+          ? kuota
+          : summarize
+            ? 'Gagal merangkum. Silakan tulis manual.'
+            : 'Gagal memuat.';
   const jalanKeluar = resolve
     ? 'Buka panel di bawah dan isi alamat beritanya.'
     : extract || sumber
       ? 'Buka panel di bawah dan tempel isi beritanya di kotak kuning.'
-      : 'Buka panel di bawah dan tulis ringkasannya.';
+      : kuota
+        ? 'Sementara itu, ringkasannya bisa ditulis sendiri di panel bawah.'
+        : 'Buka panel di bawah dan tulis ringkasannya.';
 
   return (
     <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">

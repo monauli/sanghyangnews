@@ -22,12 +22,19 @@ async function kirim<T>(jalur: string, body: unknown): Promise<T> {
 }
 
 /**
- * 3, bukan 4. Gemini free tier ~10 permintaan/menit dan satu ringkasan makan
- * 10-40 detik: 3 slot ≈ 5-18 permintaan/menit, masih di bawah limit untuk
- * artikel panjang. 4 slot menembusnya begitu artikelnya pendek-pendek —
- * hasilnya 429, backoff 2-4 detik, dan malah lebih lambat dari 3.
+ * 2 slot + jeda 4,2 detik antar-mulai = maksimal ~14 permintaan/menit.
+ *
+ * Batas jumlah bersamaan saja tidak cukup: gemini-3.5-flash-lite membalas dalam
+ * 1-2 detik, jadi 3 slot tanpa jeda bisa memuntahkan 80-180 permintaan/menit —
+ * jauh di atas 15/menit yang terukur untuk model itu. Jeda minimal mengunci
+ * lajunya tanpa bergantung pada kecepatan model, yang bisa berubah lewat
+ * GEMINI_MODEL.
+ *
+ * CATATAN: ini penjaga di sisi browser, jadi berlaku per tab. Kalau dua staf
+ * memakai aplikasi bersamaan, lajunya bisa dua kali lipat — pengaman kedua ada
+ * di lib/gemini.ts, yang menunggu selama retryDelay yang dikirim Google.
  */
-const gerbang = batasi(3);
+const gerbang = batasi(2, 4200);
 
 export default function HalamanReview() {
   const router = useRouter();
@@ -140,10 +147,14 @@ export default function HalamanReview() {
     }
 
     ubah(a.id, { tahap: 'summarize' });
+    // Galat kuota punya kalimat sendiri yang aman ditampilkan; sisanya mentah
+    // dan hanya boleh jadi catatan, bukan tulisan di layar staf.
+    let pesanKuota: string | undefined;
     try {
-      const r = await kirim<{ summaries: { summary: string | null; targetKata: [number, number]; warnings: string[]; error?: string }[] }>(
+      const r = await kirim<{ summaries: { summary: string | null; targetKata: [number, number]; warnings: string[]; error?: string; pesanUser?: string }[] }>(
         '/api/summarize', { articles: [{ title: a.title, sourceName: a.sourceName, fullText: teks }] });
       const s = r.summaries[0];
+      pesanKuota = s?.pesanUser;
       if (!s?.summary) throw new Error(s?.error ?? 'ringkasan kosong');
       ubahDari(a.id, (k) => ({
         tahap: 'siap', summary: s.summary, targetKata: s.targetKata, galat: {},
@@ -152,7 +163,9 @@ export default function HalamanReview() {
     } catch (e) {
       // Ringkasan yang sudah ada JANGAN dihapus — bisa jadi itu tulisan tangan user.
       ubahDari(a.id, (k) => ({
-        tahap: 'siap', summary: k.summary ?? '', galat: { summarize: (e as Error).message },
+        tahap: 'siap',
+        summary: k.summary ?? '',
+        galat: pesanKuota ? { kuota: pesanKuota } : { summarize: (e as Error).message },
       }));
     }
   }

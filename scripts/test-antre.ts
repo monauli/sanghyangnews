@@ -71,6 +71,30 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     cek(out.join(',') === '0,1,2,3,4,5,6', 'hasil tiap pekerjaan kembali ke pemanggilnya sendiri');
   }
 
+  // 5. Jeda minimal: laju harus terkunci walau pekerjaannya selesai seketika.
+  {
+    const gerbang = batasi(2, 200);
+    const mulai: number[] = [];
+    const t0 = Date.now();
+    await Promise.all(
+      [...Array(6).keys()].map(() => gerbang(async () => { mulai.push(Date.now() - t0); }))
+    );
+    mulai.sort((a, b) => a - b);
+    const jarak = mulai.slice(1).map((t, i) => t - mulai[i]);
+    const terrapat = Math.min(...jarak);
+    console.log(`  6 pekerjaan seketika, jeda 200ms → jarak antar-mulai terrapat ${terrapat}ms`);
+    cek(terrapat >= 195, 'tidak ada dua pekerjaan mulai lebih rapat dari jeda minimal');
+    cek(Date.now() - t0 >= 1000, 'laju terkunci walau pekerjaannya nol detik (>=5x200ms)');
+  }
+
+  // 6. Tanpa jeda, perilaku lama harus utuh.
+  {
+    const gerbang = batasi(2);
+    const t0 = Date.now();
+    await Promise.all([...Array(4).keys()].map(() => gerbang(() => sleep(50))));
+    cek(Date.now() - t0 < 250, 'jedaMinimal=0 tidak menambah perlambatan');
+  }
+
   console.log(`\n  ${gagal === 0 ? '✅ semua benar' : `🔴 ${gagal} salah`}`);
   process.exit(gagal === 0 ? 0 : 1);
 })();

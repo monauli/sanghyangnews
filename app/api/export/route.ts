@@ -1,4 +1,4 @@
-import { renderNewsletter, type ArtikelNewsletter } from '@/templates/newsletter';
+import { renderNewsletter, type ArtikelNewsletter, type Periode } from '@/templates/newsletter';
 import { UA } from '@/config/keywords';
 import { fetchAman } from '@/lib/urlaman';
 
@@ -59,11 +59,17 @@ async function keBase64(url: string | null): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
-  const { publishDate, articles } = await req.json().catch(() => ({}));
+  const { publishDate, articles, periode } = await req.json().catch(() => ({}));
 
   if (!ymd.test(publishDate ?? '')) {
     return Response.json({ error: 'Tanggal terbit tidak valid.' }, { status: 400 });
   }
+  // Periode boleh tidak ada (kop cukup menampilkan tanggal terbit), tapi kalau
+  // ada harus benar-benar tanggal — isinya masuk ke HTML yang dicetak.
+  const rentang: Periode =
+    periode && ymd.test(periode.dari ?? '') && ymd.test(periode.sampai ?? '')
+      ? { dari: periode.dari, sampai: periode.sampai }
+      : null;
   if (!Array.isArray(articles) || articles.length === 0 || articles.length > MAKS) {
     return Response.json({ error: `Kirim 1-${MAKS} artikel.` }, { status: 400 });
   }
@@ -79,7 +85,7 @@ export async function POST(req: Request) {
   try {
     browser = await bukaBrowser();
     const page = await browser.newPage();
-    await page.setContent(renderNewsletter(publishDate, siap), { waitUntil: 'load' });
+    await page.setContent(renderNewsletter(publishDate, siap, rentang), { waitUntil: 'load' });
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,

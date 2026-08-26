@@ -8,7 +8,10 @@
  *  3. Font sistem saja. Google Fonts sering belum termuat saat Puppeteer mencetak.
  *  4. URL sumber wajib ada di setiap artikel — syarat legal, bukan hiasan.
  */
-import { tanggalPanjang } from '@/lib/ui';
+import { tanggalPanjang, periodeEdisi } from '@/lib/ui';
+
+/** Rentang tanggal berita yang dicari user. Null = tidak diketahui, baris Edisi disembunyikan. */
+export type Periode = { dari: string; sampai: string } | null;
 
 export type ArtikelNewsletter = {
   title: string;
@@ -35,10 +38,13 @@ const GAYA = `
     print-color-adjust: exact;
   }
   .kop {
-    display: flex; justify-content: space-between; align-items: baseline;
-    padding: 16mm 15mm 5mm; font-size: 10pt; color: #4b5563;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 8mm; padding: 16mm 15mm 5mm; font-size: 10pt; color: #4b5563;
   }
-  .kop .merek { font-weight: 700; color: #14532d; letter-spacing: .3px; }
+  .kop .edisi { font-weight: 700; color: #14532d; }
+  .kop .terbit { margin-top: 1.2mm; font-size: 9.5pt; }
+  /* Nowrap supaya merek tidak pernah patah dua baris saat edisinya panjang. */
+  .kop .merek { font-weight: 700; color: #14532d; letter-spacing: .3px; white-space: nowrap; }
   .garis { height: 1px; background: #cbd5c0; margin: 0 15mm; }
   .kepala { padding: 9mm 15mm 0; }
   .kepala .baris1 { font-style: italic; font-size: 15pt; color: #4d7c0f; }
@@ -61,6 +67,11 @@ const GAYA = `
     font-size: 9pt; color: #9ca3af;
   }
   .artikel .teks { flex: 1 1 auto; min-width: 0; }
+  /* Sengaja jauh lebih kecil dari judulnya — penanda urutan, bukan headline. */
+  .artikel .nomor {
+    font-size: 8pt; font-weight: 700; letter-spacing: .8px;
+    text-transform: uppercase; color: #4d7c0f; margin-bottom: 1.5mm;
+  }
   .artikel h2 { margin: 0 0 3mm; font-size: 13pt; line-height: 1.35; color: #14532d; }
   .artikel p { margin: 0 0 2.5mm; font-size: 10pt; line-height: 1.6; text-align: justify; }
   .sumber {
@@ -92,6 +103,7 @@ function satuArtikel(a: ArtikelNewsletter, i: number): string {
     <article class="artikel${i % 2 === 1 ? ' balik' : ''}">
       ${gambar}
       <div class="teks">
+        <div class="nomor">Berita ${i + 1}</div>
         <h2>${esc(a.title)}</h2>
         ${paragraf}
         <a class="sumber" href="${esc(a.url)}">${esc(a.url)}</a>
@@ -99,7 +111,12 @@ function satuArtikel(a: ArtikelNewsletter, i: number): string {
     </article>`;
 }
 
-export function renderNewsletter(publishDate: string, articles: ArtikelNewsletter[]): string {
+export function renderNewsletter(
+  publishDate: string,
+  articles: ArtikelNewsletter[],
+  periode: Periode = null,
+): string {
+  const edisi = periode ? periodeEdisi(periode.dari, periode.sampai) : '';
   return `<!doctype html>
 <html lang="id">
 <head>
@@ -109,8 +126,11 @@ export function renderNewsletter(publishDate: string, articles: ArtikelNewslette
 </head>
 <body>
   <div class="kop">
-    <span>${esc(tanggalPanjang(publishDate))}</span>
-    <span class="merek">Sanghyangresort</span>
+    <div>
+      ${edisi ? `<div class="edisi">Edisi ${esc(edisi)}</div>` : ''}
+      <div class="terbit">Terbit: ${esc(tanggalPanjang(publishDate))}</div>
+    </div>
+    <span class="merek">Sanghyang news</span>
   </div>
   <div class="garis"></div>
   <div class="kepala">

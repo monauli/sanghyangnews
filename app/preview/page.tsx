@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StepIndicator from '../components/StepIndicator';
 import { KUNCI, type ArtikelTerpilih } from '@/lib/ui';
-import { renderNewsletter } from '@/templates/newsletter';
+import { renderNewsletter, type Periode } from '@/templates/newsletter';
+
+/** "2026-07-01..2026-07-31" → { dari, sampai }. Null kalau belum pernah dicari. */
+function bacaPeriode(): Periode {
+  const [dari, sampai] = (sessionStorage.getItem(KUNCI.periode) ?? '').split('..');
+  return dari && sampai ? { dari, sampai } : null;
+}
 
 const hariIni = () => {
   const d = new Date();
@@ -15,6 +21,7 @@ export default function HalamanPreview() {
   const router = useRouter();
   const [artikel, setArtikel] = useState<ArtikelTerpilih[] | null>(null);
   const [tanggal, setTanggal] = useState('');
+  const [periode, setPeriode] = useState<Periode>(null);
   const [unduh, setUnduh] = useState(false);
   const [galat, setGalat] = useState<string | null>(null);
 
@@ -23,6 +30,7 @@ export default function HalamanPreview() {
     if (!mentah) { router.replace('/'); return; }
     setArtikel(JSON.parse(mentah));
     setTanggal(sessionStorage.getItem(KUNCI.tanggal) || hariIni());
+    setPeriode(bacaPeriode());
   }, [router]);
 
   useEffect(() => {
@@ -31,8 +39,8 @@ export default function HalamanPreview() {
 
   // Preview memakai template yang sama persis dengan Puppeteer — tanpa kejutan.
   const html = useMemo(
-    () => (artikel && tanggal ? renderNewsletter(tanggal, artikel) : ''),
-    [artikel, tanggal],
+    () => (artikel && tanggal ? renderNewsletter(tanggal, artikel, periode) : ''),
+    [artikel, tanggal, periode],
   );
 
   function geser(i: number, arah: -1 | 1) {
@@ -55,7 +63,7 @@ export default function HalamanPreview() {
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publishDate: tanggal, articles: artikel }),
+        body: JSON.stringify({ publishDate: tanggal, articles: artikel, periode }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Gagal (${res.status})`);
 

@@ -20,6 +20,15 @@ export const kerjaBaru = (): Kerja => ({
   summary: null, targetKata: null, warnings: [], galat: {},
 });
 
+/**
+ * Sedang dikerjakan mesin — kartunya belum bisa dinilai.
+ * 'kosong' TIDAK termasuk: itu juga keadaan artikel yang gagal extract dan
+ * berhenti di situ selamanya. Menyamakannya dengan "belum siap" adalah bug
+ * yang membuat artikel dari portal pemblokir bot tidak pernah bisa masuk PDF
+ * walaupun stafnya sudah menempel isi dan menulis ringkasan sendiri.
+ */
+export const sedangProses = (tahap: Kerja['tahap']) => tahap !== 'kosong' && tahap !== 'siap';
+
 const PESAN_TAHAP: Record<Kerja['tahap'], string> = {
   kosong: '',
   antre: 'Menunggu giliran…',
@@ -66,7 +75,7 @@ export default function ArticleCard({
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [ubahLink, setUbahLink] = useState(false);
-  const sibuk = kerja.tahap !== 'kosong' && kerja.tahap !== 'siap';
+  const sibuk = sedangProses(kerja.tahap);
   const adaGalat = Object.values(kerja.galat).some(Boolean);
   const jiplak = cekJiplakan(kerja.summary ?? '', kerja.fullText);
 

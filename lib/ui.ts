@@ -54,6 +54,7 @@ export const KUNCI = {
   pilihan: 'sanghyang:selected',
   tanggal: 'sanghyang:publishDate',
   gagal: 'sanghyang:failedQueries',
+  periode: 'sanghyang:periode',      // "2026-07-01..2026-07-31" — rentang yang dicari user
 } as const;
 
 // ---------- BADGE ----------
@@ -96,3 +97,35 @@ export const tanggalPanjang = (ymd: string) =>
 /** "26 Jun 2026" — dipakai di kartu review. */
 export const tanggalPendek = (ymd: string) =>
   ymd ? fmt({ day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(ymd + 'T00:00:00')) : '';
+
+/**
+ * Periode berita untuk kop newsletter — BUKAN tanggal terbit.
+ * Tanpa ini pembaca melihat "Rabu, 26 Agustus 2026" di atas berita bulan Juli
+ * dan mengira beritanya basi.
+ *
+ *   1-31 Juli          → "Juli 2026"              (satu bulan penuh, cukup namanya)
+ *   1-15 Juli          → "1 – 15 Juli 2026"       (bulan ditulis sekali)
+ *   25 Juni - 10 Juli  → "25 Juni – 10 Juli 2026" (tahun ditulis sekali)
+ *   lintas tahun       → kedua tanggal lengkap
+ */
+export function periodeEdisi(dari: string, sampai: string): string {
+  if (!dari || !sampai) return '';
+  const a = new Date(dari + 'T00:00:00');
+  const b = new Date(sampai + 'T00:00:00');
+  if (isNaN(a.getTime()) || isNaN(b.getTime()) || a > b) return '';
+
+  const lengkap = fmt({ day: 'numeric', month: 'long', year: 'numeric' });
+  if (dari === sampai) return lengkap.format(a);   // sehari saja, bukan "9 – 9 Juli"
+
+  const bulanSama = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+  const hariTerakhir = new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate();
+
+  if (bulanSama && a.getDate() === 1 && b.getDate() === hariTerakhir) {
+    return fmt({ month: 'long', year: 'numeric' }).format(a);
+  }
+  if (bulanSama) return `${a.getDate()} – ${lengkap.format(b)}`;
+  if (a.getFullYear() === b.getFullYear()) {
+    return `${fmt({ day: 'numeric', month: 'long' }).format(a)} – ${lengkap.format(b)}`;
+  }
+  return `${lengkap.format(a)} – ${lengkap.format(b)}`;
+}

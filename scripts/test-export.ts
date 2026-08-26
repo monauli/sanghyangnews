@@ -12,6 +12,8 @@ if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 const ALAMAT = 'http://localhost:3000/api/export';
 const KELUAR = process.env.PDF_OUT || 'scripts/.uji-newsletter.pdf';
 const PUBLISH = '2026-06-26';
+// Periode berita (bukan tanggal terbit) — 1-31 Juli penuh, harus jadi "Edisi Juli 2026".
+const PERIODE = { dari: '2026-07-01', sampai: '2026-07-31' };
 
 const ARTIKEL = [
   {
@@ -39,6 +41,19 @@ const ARTIKEL = [
       'Mendes PDT Yandri Susanto akan menyiapkan bantuan afirmasi pengembangan objek desa wisata terintegrasi dengan kawasan pantai di Provinsi Banten.\n\nProgram tersebut menargetkan desa-desa di kawasan Anyer, Cinangka, Padarincang, Mancak, Ciomas, dan Pandeglang.',
     url: 'https://mediabanten.com/mendes-pdt-siapkan-bantuan-pengembangan-desa-wisata-di-banten/',
     sourceName: 'MediaBanten.Com',
+    imageUrl: null,
+  },
+  {
+    // JALUR PENYELAMATAN MANUAL. Portal ini membalas 403 ke bot, jadi extract
+    // selalu gagal: tidak ada fullText, tidak ada gambar, ringkasannya diketik
+    // staf sendiri. Dulu artikel begini tidak pernah bisa masuk PDF karena
+    // validasi memeriksa TAHAP proses, bukan isi. Jangan hapus fixture ini.
+    id: 'a4',
+    title: 'BMPP Siap Kolaborasi dengan Pemkab Serang, Festival Anyer Panarukan Jadi Langkah Awal',
+    summary:
+      'Badan Musyawarah Perhimpunan Pariwisata menyatakan kesiapannya berkolaborasi dengan Pemerintah Kabupaten Serang untuk mengembangkan sektor pariwisata daerah. Festival Anyer Panarukan disebut menjadi langkah awal dari kerja sama tersebut.\n\nKegiatan itu diharapkan menarik kunjungan wisatawan sekaligus menghidupkan usaha kecil di sekitar kawasan pantai.',
+    url: 'https://kabarbanten.pikiran-rakyat.com/seputar-banten/pr-5910345075/bmpp-siap-kolaborasi',
+    sourceName: 'Kabar Banten',
     imageUrl: null,
   },
 ];
@@ -144,7 +159,7 @@ const DARI_BERKAS = process.env.ARTIKEL_JSON;
   const res = await fetch(ALAMAT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
-    body: JSON.stringify({ publishDate: PUBLISH, articles: ARTIKEL }),
+    body: JSON.stringify({ publishDate: PUBLISH, articles: ARTIKEL, periode: PERIODE }),
   });
   if (!res.ok) {
     console.log('  ❌ ' + JSON.stringify(await res.json().catch(() => ({}))));
@@ -174,13 +189,24 @@ const DARI_BERKAS = process.env.ARTIKEL_JSON;
 
   console.log('\n  ── TANGGAL ──');
   const inggris = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.exec(rapat);
-  console.log(`  ${rapat.includes('Jumat, 26 Juni 2026') ? '✅' : '🔴'} "Jumat, 26 Juni 2026" ada di dalam PDF`);
+  console.log(`  ${rapat.includes('Terbit: Jumat, 26 Juni 2026') ? '✅' : '🔴'} Tanggal terbit "Terbit: Jumat, 26 Juni 2026"`);
+  console.log(`  ${rapat.includes('Edisi Juli 2026') ? '✅' : '🔴'} Periode berita "Edisi Juli 2026" (1-31 Juli disingkat)`);
   console.log(`  ${inggris ? `🔴 ADA NAMA HARI/BULAN INGGRIS: ${inggris[0]}` : '✅ Tidak ada nama hari/bulan Inggris'}`);
 
   console.log('\n  ── ISI ──');
   const cek: [string, boolean][] = [
     ['Judul "Sanghyang Highlights"', rapat.includes('Sanghyang Highlights')],
-    ['Merek "Sanghyangresort"', rapat.includes('Sanghyangresort')],
+    ['Merek "Sanghyang news"', rapat.includes('Sanghyang news')],
+    ['Merek lama "Sanghyangresort" sudah hilang', !rapat.includes('Sanghyangresort')],
+    // Dicek tanpa peduli besar-kecil huruf: gayanya text-transform: uppercase,
+    // jadi di PDF terbaca "BERITA 1" walau di HTML tertulis "Berita 1".
+    ['Nomor "Berita 1"', /berita 1/i.test(rapat)],
+    ['Nomor "Berita 4"', /berita 4/i.test(rapat)],
+    ['Tidak ada "Berita 5" (cuma 4 artikel)', !/berita 5/i.test(rapat)],
+    // Artikel jalur manual: gagal extract, tanpa fullText, tanpa gambar.
+    ['Artikel jalur manual ikut ke PDF', rapat.includes('Badan Musyawarah Perhimpunan Pariwisata')],
+    ['Judul artikel jalur manual', rapat.includes('BMPP Siap Kolaborasi dengan Pemkab Serang')],
+    ['Link sumber artikel jalur manual', rapat.includes('kabarbanten.pikiran-rakyat.com')],
     ['Footer www.sanghyang.com', rapat.includes('www.sanghyang.com')],
     ['Ejaan "Mövenpick" (umlaut) utuh', rapat.includes('Mövenpick')],
     ['Judul artikel 1', rapat.includes('Exciting Banten Festival 2026 Hadir di Anyer')],

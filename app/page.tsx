@@ -90,6 +90,8 @@ export default function Halaman1() {
             setProgres(`Ditemukan ${p.utama} berita utama`);
             sessionStorage.setItem(KUNCI.hasil, JSON.stringify(p.articles));
             sessionStorage.setItem(KUNCI.gagal, String(p.failedQueries ?? 0));
+            // Dipakai kop newsletter: periode BERITA, bukan tanggal terbit.
+            sessionStorage.setItem(KUNCI.periode, `${dari}..${sampai}`);
             router.push('/review');
             return;
           }

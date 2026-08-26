@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StepIndicator from '../components/StepIndicator';
-import ArticleCard, { kerjaBaru, type Kerja } from './ArticleCard';
+import ArticleCard, { kerjaBaru, sedangProses, type Kerja } from './ArticleCard';
 import { KUNCI, JUDUL_GRUP, grupOf, type Grup, type UiArticle, type ArtikelTerpilih } from '@/lib/ui';
 import { cekJiplakan } from '@/lib/jiplak';
 import { batasi } from '@/lib/antre';
@@ -182,9 +182,20 @@ export default function HalamanReview() {
   }
 
   const terpilih = (artikel ?? []).filter((a) => pilihan.includes(a.id));
+  /**
+   * Yang menentukan siap adalah ISI-nya, bukan tahap prosesnya.
+   *
+   * Dulu di sini ada `k.tahap !== 'siap'`. Artikel yang gagal extract berhenti
+   * di tahap 'kosong' dan tidak pernah beranjak, jadi staf yang sudah menempel
+   * isi dan menulis ringkasan sendiri tetap dibilang "belum siap" — jalur
+   * penyelamatan untuk portal pemblokir bot (Kabar Banten, lifestyle.bisnis.com)
+   * jadi percuma. Yang perlu dicegah cuma menilai kartu yang MASIH diproses.
+   */
   const belumSiap = terpilih.filter((a) => {
     const k = kerja[a.id] ?? kerjaBaru();
-    if (k.tahap !== 'siap' || !k.summary?.trim() || !/^https?:\/\//.test(k.finalUrl ?? '')) return true;
+    if (sedangProses(k.tahap)) return true;
+    if (!k.summary?.trim()) return true;
+    if (!/^https?:\/\//.test(k.finalUrl ?? '')) return true;
     // Artikel asli yang belum diringkas tidak boleh masuk PDF — itu hak cipta portal.
     return !cekJiplakan(k.summary, k.fullText).aman;
   });

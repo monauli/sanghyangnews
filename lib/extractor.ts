@@ -29,7 +29,8 @@ function timeout(ms: number) {
   return c.signal;
 }
 
-const FULL_HEADERS: Record<string, string> = {
+/** Diekspor supaya skrip diagnosis memakai header yang sama persis dengan aplikasi. */
+export const FULL_HEADERS: Record<string, string> = {
   'User-Agent': UA,
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
   'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',

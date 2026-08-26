@@ -9,24 +9,27 @@ Biasanya selesai dalam 5–10 menit.
 
 ## Cara menjalankan
 
-1. Buka **Command Prompt** di folder ini
-2. Ketik perintah berikut lalu tekan Enter:
+**Klik dua kali `Jalankan Sanghyang.bat`** di folder ini.
 
-   ```
-   npm run dev
-   ```
+Akan muncul jendela hitam, lalu browser terbuka sendiri ke alatnya.
+Tidak perlu mengetik apa pun.
 
-3. Tunggu sampai muncul tulisan `Ready`
-4. Buka browser, masuk ke alamat:
+> **Jendela hitam itu jangan ditutup** selama kamu memakai alatnya.
+> Itu bukan error — di situlah alatnya berjalan. Kalau ditutup, alatnya mati.
 
-   ```
-   http://localhost:3000
-   ```
+Setelah PDF-nya terunduh dan kamu sudah selesai, tutup browser lalu tutup
+jendela hitam itu.
 
-Biarkan jendela Command Prompt tetap terbuka selama kamu memakai alatnya.
-Kalau ditutup, alatnya berhenti.
+Kalau browsernya tidak terbuka sendiri, buka browser dan ketik alamat ini:
+`http://localhost:3000`
 
-Setelah selesai, tutup browser lalu tekan `Ctrl + C` di Command Prompt.
+### Kalau muncul tulisan "BELUM SIAP DIJALANKAN"
+
+Artinya alatnya belum selesai dipasang di komputer itu.
+Klik dua kali **`Setup Pertama Kali.bat`**, tunggu sampai muncul
+`SETUP SELESAI`, baru jalankan lagi `Jalankan Sanghyang.bat`.
+
+`Setup Pertama Kali.bat` cuma perlu dijalankan **sekali seumur pemasangan**.
 
 ---
 
@@ -129,13 +132,54 @@ lalu coba unduh lagi. IDM suka mencegat unduhan PDF sampai berkasnya jadi kosong
 | **Berita yang dicari tidak ada** | Coba buka kelompok **Berita Lain**. Kalau tetap tidak ada, ulangi pencarian |
 | **Pencarian sangat lama (>2 menit)** | Tutup tab, buka lagi `http://localhost:3000`, ulangi |
 | **Halaman kosong / error** | Kembali ke `http://localhost:3000` dan mulai lagi dari awal |
+| **Jendela hitamnya tertutup sendiri** | Buka lagi `Jalankan Sanghyang.bat`. Pekerjaan di tab browser hilang, harus mulai dari awal |
+
+---
+
+## Cara memasang di komputer baru
+
+### Yang dikirim
+
+Salin folder aplikasi ini ke komputer tujuan (flashdisk, Google Drive, apa saja),
+**tapi hapus dulu tiga hal ini sebelum menyalin:**
+
+| Jangan ikut dikirim | Kenapa |
+|---|---|
+| `node_modules/` | Ratusan MB, dan isinya khusus per komputer. `Setup Pertama Kali.bat` mengunduhnya sendiri |
+| `.next/` | Hasil build lama. Ikut dibuat ulang saat setup |
+| `.env.local` | **Berisi kunci Gemini dan sandi.** Kirim terpisah, atau biarkan setup membuat yang kosong lalu isi di tempat |
+
+Tanpa ketiganya, folder yang dikirim tinggal beberapa MB.
+
+> **Soal `.env.local`:** kalau komputer baru itu memakai kunci Gemini yang sama,
+> boleh dikirim (lewat jalur pribadi, jangan lewat chat grup). Kalau kuncinya
+> beda, **jangan dikirim** — biarkan `Setup Pertama Kali.bat` membuat berkas
+> kosong, lalu isi langsung di komputer itu.
+>
+> Jangan pernah menaruh `.env.local` di Git. Berkas itu sudah masuk `.gitignore`.
+
+### Langkah pemasangan
+
+1. Pasang **Node.js** versi LTS dari [nodejs.org](https://nodejs.org) — restart komputer setelahnya
+2. Salin folder aplikasi ke komputer itu (tanpa tiga hal di atas)
+3. Klik dua kali **`Setup Pertama Kali.bat`**, tunggu sampai selesai
+4. Kalau muncul `HAMPIR SELESAI`, buka `.env.local` dengan Notepad dan isi
+   `GEMINI_API_KEY=` dan `APP_PASSWORD=`
+5. Klik dua kali **`Jalankan Sanghyang.bat`** — selesai
+
+Setup butuh internet (mengunduh ±550 MB). Setelah terpasang, aplikasinya tetap
+butuh internet untuk mencari berita dan memanggil Gemini, tapi tidak mengunduh
+apa pun lagi.
 
 ---
 ---
 
 # Catatan untuk developer
 
-**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Puppeteer · Gemini 2.5 Flash
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Puppeteer · Gemini 3.5 Flash-Lite
+
+**Cara dipakai:** dijalankan **lokal** di komputer staf lewat `Jalankan Sanghyang.bat`.
+Bukan di-deploy — alasannya terukur, lihat [Kenapa aplikasi ini dijalankan LOKAL](#️-kenapa-aplikasi-ini-dijalankan-lokal-bukan-di-deploy).
 
 ### Konfigurasi
 
@@ -163,9 +207,55 @@ Jangan pakai `gemini-2.5-flash-lite`: masih terdaftar tapi membalas 404.
 mengunci seluruh aplikasi (semua halaman dan semua `/api/*` dijawab 503). Fail-closed
 disengaja: salah setel di dashboard tidak boleh berarti pintu terbuka untuk umum.
 
-### Deploy ke Vercel
+### ⚠️ Kenapa aplikasi ini dijalankan LOKAL, bukan di-deploy
 
-Sudah disiapkan, tapi **belum pernah diuji di Vercel** — baru diuji di lokal.
+**Keputusan: dipakai lokal lewat `Jalankan Sanghyang.bat`. Vercel dibiarkan
+sebagai cadangan, tidak dipakai sehari-hari.**
+
+Alasannya diukur, bukan diperkirakan. `scripts/test-portal.ts` menguji 70 artikel
+yang sama persis — daftar URL identik, kode extract identik, dijalankan berurutan
+dalam satu proses — dari koneksi rumah dan dari `/api/extract` yang ter-deploy:
+
+| | artikel terbaca | |
+|---|---|---|
+| **Lokal** (IP rumah) | **53/70** | **76%** |
+| **Vercel** (IP datacenter) | **38/70** | **54%** |
+
+Selisihnya 15 artikel, dan **pertukarannya searah**: 15 artikel lolos di rumah
+tapi ditolak di Vercel, **0 artikel** sebaliknya. Deploy murni menurunkan
+kemampuan aplikasi.
+
+Penyebabnya bukan kode, tapi **Cloudflare menolak IP datacenter**. Sepuluh portal
+menjawab 200 dengan normal dari koneksi rumah dan `HTTP 403` dari Vercel dalam
+122–758 ms — ditolak di tepi jaringan sebelum menyentuh server portalnya. Sembilan
+dari sepuluh memakai `server: cloudflare`:
+
+```
+ekbisbanten.com  bantenhay.com  satelitnews.com  pandeglangnews.co.id
+topkonstruksi.com  kabarfajar.com  kbanews.com  ketik.com  kabar6.com
+gerbangpatriot.com  <- LiteSpeed, 503, mekanisme lain
+```
+
+`ekbisbanten.com` adalah portal paling produktif di seluruh sampel — 5 artikel,
+semuanya terbaca di rumah, **nol** di Vercel.
+
+Dua catatan supaya angka ini tidak salah dipakai:
+
+- Sampel 70 punya derau tinggi. Dua undian berbeda dari kolam yang sama
+  memberi 53% dan 76% keberhasilan lokal. Yang bisa dipegang adalah **pola per
+  domain** dan **selisih lokal vs Vercel dalam satu putaran** (daftar URL sama),
+  bukan angka mutlaknya. Daftar sampel tersimpan di `scripts/.portal-sampel.json`
+  supaya uji berikutnya bisa dibandingkan lurus.
+- Diuji dari region default Vercel. Region lain belum diuji.
+
+Sisi baiknya lokal: tidak ada batas 60 detik, tidak ada cold start, Chromium
+asli untuk PDF, dan tidak ada biaya.
+
+### Deploy ke Vercel (cadangan, tidak dipakai)
+
+Masih berfungsi dan sudah diuji di Vercel — PDF jadi, ringkasan jalan. Jangan
+dihapus; berguna kalau komputer staf bermasalah. Sadari saja ±22 poin persen
+artikel yang tidak terbaca dari sana.
 
 - `vercel.json` — region `sin1` (Singapura), `maxDuration` 60 detik (batas Hobby),
   memori 1769 MB untuk `/api/export` karena Chromium haus memori
@@ -209,6 +299,8 @@ lalu menekan **Ambil Ulang dari Link**, yang melewati resolver sepenuhnya.
 ### Struktur
 
 ```
+Setup Pertama Kali.bat   dipasang sekali - cek Node, npm install, .env.local, build
+Jalankan Sanghyang.bat   dipakai staf sehari-hari - npm start + buka browser
 proxy.ts     penjaga sandi — Next 16 memakai nama ini, BUKAN middleware.ts
 vercel.json  region sin1 + maxDuration 60 detik
 /config      keywords.ts (19 query, bobot skor, blacklist) · thresholds.ts (ambang)
@@ -231,6 +323,7 @@ vercel.json  region sin1 + maxDuration 60 detik
 | `test-error-paths.ts` | Portal 403, link rusak, kunci Gemini salah |
 | `test-urlaman.ts` | Penjaga SSRF — alamat internal ditolak, alamat portal diterima |
 | `test-export.ts` | Generate PDF lalu bongkar isinya (butuh `npm run dev` jalan) |
+| `test-portal.ts` | Survei portal: berapa persen artikel terbaca, dan kenapa yang gagal itu gagal. Bisa membandingkan lokal vs Vercel (`VERCEL_APP_URL=...`). Tidak memanggil Gemini |
 
 ### Hal yang perlu diketahui
 

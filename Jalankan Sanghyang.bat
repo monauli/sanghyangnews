@@ -11,6 +11,27 @@ echo    Sanghyang News
 echo ==========================================================
 echo.
 
+REM Aplikasinya mungkin sudah dinyalakan di jendela lain dan staf lupa.
+REM Kalau alamatnya sudah hidup, JANGAN nyalakan yang kedua: cukup buka
+REM browsernya. Menyalakan yang kedua bikin jendela ini mati sendiri, dan
+REM staf mengira itu error lalu menutup jendela pertama - yang justru
+REM mematikan aplikasi yang sedang dipakai.
+REM Dua findstr, bukan satu: findstr ":3000" saja ikut mencocokkan :30000.
+netstat -an | findstr "LISTENING" | findstr /c:":3000 " >nul 2>nul
+if errorlevel 1 goto :alamat_kosong
+
+REM Alamatnya terpakai - tapi belum tentu oleh aplikasi ini. Terbukti di
+REM komputer pengembang: aplikasi Next.js lain memakai alamat yang sama.
+REM Kalau langsung dianggap "sudah jalan", browser terbuka ke aplikasi
+REM yang salah dan staf tidak akan paham kenapa. Jadi ditanya dulu.
+where curl >nul 2>nul
+if errorlevel 1 goto :sudah_jalan
+curl -s -m 5 "%ALAMAT%/login" 2>nul | findstr /i "Sanghyang" >nul 2>nul
+if errorlevel 1 goto :dipakai_lain
+goto :sudah_jalan
+
+:alamat_kosong
+
 where node >nul 2>nul
 if errorlevel 1 goto :node_tidak_ada
 
@@ -59,6 +80,43 @@ echo.
 echo  Kemungkinan lain: aplikasinya sudah terbuka di jendela
 echo  lain. Cek dulu apakah ada jendela hitam serupa yang
 echo  masih terbuka sebelum menyalakan ulang.
+echo.
+goto :habis
+
+
+:sudah_jalan
+start "" "%ALAMAT%"
+echo ==========================================================
+echo    APLIKASI SUDAH BERJALAN
+echo ==========================================================
+echo.
+echo  Tidak ada yang salah. Aplikasinya memang sudah menyala
+echo  di jendela lain, jadi tidak perlu dinyalakan dua kali.
+echo.
+echo  Browser sudah dibuka ke alamatnya. Kalau tidak muncul,
+echo  buka browser lalu ketik:  %ALAMAT%
+echo.
+echo  Jendela ini boleh ditutup.
+echo  JANGAN tutup jendela satunya - di situ aplikasinya jalan.
+echo.
+goto :habis
+
+
+:dipakai_lain
+echo ==========================================================
+echo    ALAMATNYA SEDANG DIPAKAI PROGRAM LAIN
+echo ==========================================================
+echo.
+echo  Alamat %ALAMAT% sudah dipakai
+echo  program lain di komputer ini, bukan aplikasi Sanghyang.
+echo.
+echo  Aplikasi ini tidak bisa memakai alamat yang sama.
+echo.
+echo  Yang harus dilakukan:
+echo    1. Tutup program lain itu dulu
+echo       (biasanya jendela hitam serupa milik aplikasi lain)
+echo    2. Kalau tidak tahu program apa, RESTART komputer
+echo    3. Setelah itu jalankan lagi file ini
 echo.
 goto :habis
 

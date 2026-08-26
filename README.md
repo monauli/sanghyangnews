@@ -133,6 +133,8 @@ lalu coba unduh lagi. IDM suka mencegat unduhan PDF sampai berkasnya jadi kosong
 | **Pencarian sangat lama (>2 menit)** | Tutup tab, buka lagi `http://localhost:3000`, ulangi |
 | **Halaman kosong / error** | Kembali ke `http://localhost:3000` dan mulai lagi dari awal |
 | **Jendela hitamnya tertutup sendiri** | Buka lagi `Jalankan Sanghyang.bat`. Pekerjaan di tab browser hilang, harus mulai dari awal |
+| **"APLIKASI SUDAH BERJALAN"** | Bukan error. Kamu klik `Jalankan Sanghyang.bat` dua kali. Browser sudah dibuka; tutup jendela yang baru ini saja, **jangan tutup yang satunya** |
+| **"ALAMATNYA SEDANG DIPAKAI PROGRAM LAIN"** | Ada program lain yang memakai `localhost:3000`. Tutup program itu, atau restart komputer, lalu coba lagi |
 
 ---
 

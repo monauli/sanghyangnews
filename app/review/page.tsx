@@ -282,19 +282,20 @@ export default function HalamanReview() {
         <section key={g}>
           <button
             onClick={() => setGrupBuka((s) => ({ ...s, [g]: !s[g] }))}
-            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left font-semibold text-gray-900 shadow-sm"
+            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 text-left font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
           >
             <span>{JUDUL_GRUP[g]} <span className="font-normal text-gray-500">({perGrup[g].length})</span></span>
-            <span className="text-gray-400">{grupBuka[g] ? '▴' : '▾'}</span>
+            <span className={`text-gray-400 transition-transform duration-200 ${grupBuka[g] ? 'rotate-180' : ''}`}>▾</span>
           </button>
 
           {grupBuka[g] && (
             <ul className="mt-3 flex flex-col gap-3">
-              {perGrup[g].map((a) => (
+              {perGrup[g].map((a, i) => (
                 <ArticleCard
                   key={a.id}
                   artikel={a}
                   nomor={nomorOf.get(a.id)!}
+                  urutan={i}
                   wakilGugus={!a.dupeOf}
                   ukuranTampak={ukuranGugus.get(a.id) ?? 1}
                   dipilih={pilihan.includes(a.id)}

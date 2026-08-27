@@ -50,3 +50,7 @@ scripts/.vercel-regresi.pdf
 .playwright-mcp/
 scripts/.portal-sampel.json
 scripts/.h-*.html
+
+# Tangkapan layar pembanding tampilan — bukan bagian aplikasi
+tangkapan-layar/
+.playwright-mcp/

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { badge, tanggalPendek, type UiArticle } from '@/lib/ui';
 import { cekJiplakan } from '@/lib/jiplak';
 
@@ -35,14 +35,24 @@ export const kerjaBaru = (): Kerja => ({
  */
 export const sedangProses = (tahap: Kerja['tahap']) => tahap !== 'kosong' && tahap !== 'siap';
 
+/**
+ * Angka "(biasanya 10-40 detik)" dibuang dari sini: itu terukur pada
+ * gemini-2.5-flash, dan sejak pindah ke 3.5-flash-lite jadi 1-2 detik —
+ * janji yang salah. Penggantinya penghitung detik yang sungguhan berjalan
+ * (lihat `detik` di bawah): tidak bisa basi, dan justru lebih menenangkan
+ * karena angkanya bergerak.
+ */
 const PESAN_TAHAP: Record<Kerja['tahap'], string> = {
   kosong: '',
   antre: 'Menunggu giliran…',
   resolve: 'Mengambil link…',
   extract: 'Membaca artikel…',
-  summarize: 'Merangkum… (biasanya 10-40 detik)',
+  summarize: 'Merangkum…',
   siap: '',
 };
+
+/** Judul bagian di dalam panel edit. Kecil dan kalem — isinya yang harus menonjol. */
+const LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500';
 
 const MAKS_UPLOAD = 5 * 1024 * 1024;
 
@@ -63,6 +73,7 @@ function pendekUrl(u: string): string {
 type Props = {
   artikel: UiArticle;
   nomor: number;
+  urutan: number;        // posisi di dalam grup tampilan — untuk jeda masuk bertahap
   wakilGugus: boolean;   // artikel ini yang berskor tertinggi di gugusnya
   ukuranTampak: number;  // anggota gugus yang BENAR-BENAR terlihat di grup tampilan ini
   dipilih: boolean;
@@ -76,8 +87,17 @@ type Props = {
   onBuatUlangRingkasan: () => void;
 };
 
+/**
+ * Jeda masuk bertahap. Dibatasi 10 kartu pertama: grup "Berita Lain" bisa
+ * berisi 96 kartu, dan 96 × 20ms = hampir dua detik menunggu daftar selesai
+ * muncul — itu menambah waktu tunggu, bukan kejelasan. Yang perlu terbaca cuma
+ * "daftarnya sedang mengalir masuk", dan sepuluh kartu sudah menyampaikan itu.
+ */
+const JEDA_MS = 20;
+const MAKS_BERTAHAP = 10;
+
 export default function ArticleCard({
-  artikel, nomor, wakilGugus, ukuranTampak, dipilih, terbuka, kerja,
+  artikel, nomor, urutan, wakilGugus, ukuranTampak, dipilih, terbuka, kerja,
   onToggle, onBuka, onUbah, onUlangi, onAmbilUlang, onBuatUlangRingkasan,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -94,6 +114,18 @@ export default function ArticleCard({
   const diLuarTarget = !!kerja.targetKata && kataRingkasan > 0
     && (kataRingkasan < kerja.targetKata[0] || kataRingkasan > kerja.targetKata[1]);
 
+  /**
+   * Penghitung detik selama kartu dikerjakan mesin. Sengaja baru muncul
+   * setelah 3 detik: tahap resolve biasanya 0,5 detik dan angka yang berkedip
+   * sekejap lebih mengganggu daripada menolong.
+   */
+  const [detik, setDetik] = useState(0);
+  useEffect(() => {
+    if (!sibuk) { setDetik(0); return; }
+    const t = setInterval(() => setDetik((d) => d + 1), 1000);
+    return () => clearInterval(t);
+  }, [sibuk]);
+
   function unggahGambar(f: File | undefined) {
     if (!f) return;
     if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return alert('Pakai file JPG, PNG, atau WEBP.');
@@ -104,7 +136,11 @@ export default function ArticleCard({
   }
 
   return (
-    <li className={`rounded-xl border bg-white ${dipilih ? 'border-green-700 ring-1 ring-green-700' : 'border-gray-200'}`}>
+    <li
+      className={`kartu-masuk rounded-xl border bg-white transition-colors duration-150 ${
+        dipilih ? 'border-green-700 ring-1 ring-green-700' : 'border-gray-200 hover:border-gray-300'}`}
+      style={{ animationDelay: `${Math.min(urutan, MAKS_BERTAHAP) * JEDA_MS}ms` }}
+    >
       <div className="flex gap-4 p-4">
         <input
           type="checkbox"
@@ -123,7 +159,7 @@ export default function ArticleCard({
             className="h-20 w-28 shrink-0 rounded-lg object-cover"
           />
         ) : (
-          <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">
+          <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-400 ring-1 ring-inset ring-gray-100">
             {dipilih ? 'tanpa gambar' : ' '}
           </div>
         )}
@@ -186,6 +222,7 @@ export default function ArticleCard({
             <p className="mt-2 flex items-center gap-2 text-sm text-green-800">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-800 border-t-transparent" />
               {PESAN_TAHAP[kerja.tahap]}
+              {detik >= 3 && <span className="text-green-700/70 tabular-nums">{detik} dtk</span>}
             </p>
           )}
 
@@ -195,15 +232,36 @@ export default function ArticleCard({
             <button
               type="button"
               onClick={onBuka}
-              className="mt-2 text-sm font-medium text-green-800 hover:underline"
+              className="mt-2 flex items-center gap-1 text-sm font-medium text-green-800 hover:underline"
             >
-              {terbuka ? 'Tutup' : 'Lihat & Edit'} {terbuka ? '▴' : '▾'}
+              {terbuka ? 'Tutup' : 'Lihat & Edit'}
+              <span className={`transition-transform duration-200 ${terbuka ? 'rotate-180' : ''}`}>▾</span>
             </button>
           )}
         </div>
       </div>
 
-      {dipilih && terbuka && (
+      {/*
+        Pembungkus 0fr↔1fr — satu-satunya cara CSS murni menganimasikan tinggi
+        yang isinya belum diketahui. Cuma dipasang untuk kartu yang DIPILIH:
+        kalau tidak, 253 panel edit ikut ada di DOM sepanjang waktu demi transisi
+        yang tidak pernah dipakai.
+
+        Dipakai `terbuka` langsung, bukan keadaan bayangan yang di-flip di dalam
+        requestAnimationFrame. Versi rAF memang membuat bukaan PERTAMA ikut
+        beranimasi, tapi kalau rAF ditahan browser (tab latar, mode hemat daya)
+        panelnya tidak pernah terbuka sama sekali — terukur waktu diuji. Bukaan
+        pertama muncul seketika; tutup-buka sesudahnya beranimasi. Menukar
+        animasi sekali dengan panel yang tidak mungkin macet itu murah.
+
+        `inert` waktu tertutup: tingginya nol tapi isinya masih bisa dicapai Tab,
+        dan kolom yang tidak terlihat menerima fokus itu membingungkan.
+      */}
+      {dipilih && (
+        <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+          terbuka ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+        >
+          <div className="overflow-hidden" inert={!terbuka}>
         <div className="flex flex-col gap-4 border-t border-gray-100 bg-gray-50 p-4">
           {/* Peringatan berhalaman muncul di dalam panel juga: di sinilah stafnya
               berada waktu menyalin isi berita, jadi di sini pesannya berguna. */}
@@ -217,8 +275,8 @@ export default function ArticleCard({
 
           {/* Judul disembunyikan di balik tombol, seperti Link sumber: yang normal
               tidak perlu disentuh, yang kotor harus ada jalan keluarnya. */}
-          <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Judul
+          <div className="flex flex-col gap-1.5 text-sm font-medium text-gray-700">
+            <span className={LABEL}>Judul</span>
             <div className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-normal text-gray-900">{judulTampil}</span>
               <button
@@ -246,8 +304,8 @@ export default function ArticleCard({
           {/* Jalur isi-sendiri WAJIB tetap ada — kalau resolve gagal, ini satu-satunya
               cara user memberi alamat berita. Cukup disembunyikan di balik "Ubah",
               dan terbuka otomatis selama alamatnya memang belum ada. */}
-          <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Link sumber
+          <div className="flex flex-col gap-1.5 text-sm font-medium text-gray-700">
+            <span className={LABEL}>Link sumber</span>
             {kerja.finalUrl ? (
               <div className="flex items-center gap-2">
                 <a
@@ -303,9 +361,9 @@ export default function ArticleCard({
             </label>
           )}
 
-          <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          <div className="flex flex-col gap-1.5 text-sm font-medium text-gray-700">
             <div className="flex items-baseline justify-between">
-              <span>{kerja.fullText ? 'Ringkasan' : '2. Ringkasan'}</span>
+              <span className={LABEL}>{kerja.fullText ? 'Ringkasan' : '2. Ringkasan'}</span>
               {/*
                 Angkanya DIPERTAHANKAN, bukan disembunyikan: ringkasan 60 kata di
                 slot yang dirancang ~170 memang terlalu tipis, dan staf perlu
@@ -372,7 +430,7 @@ export default function ArticleCard({
           </div>
 
           <div className="flex flex-col gap-2 text-sm font-medium text-gray-700">
-            Gambar
+            <span className={LABEL}>Gambar</span>
             {kerja.warnings.includes('gambar-kecil') && (
               <p className="text-xs font-normal text-amber-800">
                 ⚠️ Gambar beresolusi rendah, sebaiknya diganti.
@@ -418,6 +476,8 @@ export default function ArticleCard({
             </div>
           </div>
 
+        </div>
+          </div>
         </div>
       )}
     </li>

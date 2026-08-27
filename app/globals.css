@@ -15,5 +15,74 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /*
+   * Geist sudah diunduh app/layout.tsx lewat next/font, tapi baris ini dulu
+   * berbunyi "Arial, Helvetica, sans-serif" — jadi dua keluarga font diunduh
+   * tiap kunjungan lalu tidak pernah dipakai sama sekali. Sekarang dipakai.
+   */
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Transisi warna untuk semua yang bisa disentuh. Satu aturan, bukan ditempel
+ * satu-satu di tiap tombol: yang berubah cuma warna, jadi tidak ada biaya tata
+ * letak, dan tidak ada tombol yang kelewat.
+ */
+button,
+a,
+input,
+textarea,
+summary {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+/*
+ * Kartu masuk bertahap. Sengaja cuma opacity + geser 4px: keduanya dikerjakan
+ * compositor, jadi 286 kartu sekaligus pun tidak menyentuh tata letak.
+ *
+ * `backwards`, BUKAN `both`: keduanya sama-sama menahan keadaan awal selama
+ * jeda (tanpa itu kartu berkedip muncul dulu sebelum animasinya mulai), tapi
+ * `both` juga menahan keadaan AKHIR selamanya — terukur 286 animasi selesai
+ * yang tidak pernah dilepas browser, dan gaya kartunya terkunci oleh animasi
+ * itu sampai halaman ditutup. `backwards` melepasnya begitu selesai.
+ */
+@keyframes sanghyang-masuk {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.kartu-masuk {
+  animation: sanghyang-masuk 180ms ease-out backwards;
+}
+
+/*
+ * Sebagian orang pusing kalau ada gerakan. Semua animasi & transisi dimatikan.
+ *
+ * KECUALI spinner: itu satu-satunya gerakan yang MEMBERI INFORMASI. Kalau
+ * dibekukan, staf melihat lingkaran diam dan mengira aplikasinya menggantung —
+ * persis kebalikan dari tujuannya. Angka detik di sebelahnya tetap berjalan,
+ * jadi tanpa spinner pun keadaannya masih terbaca.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite !important;
+  }
 }

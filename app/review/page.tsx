@@ -41,7 +41,16 @@ export default function HalamanReview() {
   const [artikel, setArtikel] = useState<UiArticle[] | null>(null);
   const [kerja, setKerja] = useState<Record<string, Kerja>>({});
   const [pilihan, setPilihan] = useState<string[]>([]);
-  const [terbuka, setTerbuka] = useState<string | null>(null);
+  // Himpunan, bukan satu id: editor perlu membaca beberapa ringkasan berurutan
+  // untuk membandingkan. Dulu membuka yang berikutnya menutup yang sebelumnya,
+  // dan itu terasa seperti aplikasinya rusak.
+  const [terbuka, setTerbuka] = useState<Set<string>>(new Set());
+  const ubahTerbuka = (id: string, buka: boolean) =>
+    setTerbuka((t) => {
+      const baru = new Set(t);
+      if (buka) baru.add(id); else baru.delete(id);
+      return baru;
+    });
   const [grupBuka, setGrupBuka] = useState<Record<Grup, boolean>>({ utama: true, lain: false, kurang: false });
   const [pesanSimpan, setPesanSimpan] = useState<string | null>(null);
   const [adaQueryGagal, setAdaQueryGagal] = useState(false);
@@ -173,10 +182,11 @@ export default function HalamanReview() {
   function toggle(a: UiArticle) {
     if (pilihan.includes(a.id)) {
       setPilihan((p) => p.filter((x) => x !== a.id));   // data hasil kerja disimpan, centang ulang jadi instan
+      ubahTerbuka(a.id, false);                         // panelnya ikut tutup, bukan menumpuk diam-diam
       return;
     }
     setPilihan((p) => [...p, a.id]);
-    setTerbuka(a.id);
+    ubahTerbuka(a.id, true);
     // Ref, bukan state: centang beruntun bisa dibatch React dan `kerja` jadi basi.
     if ((kerjaRef.current[a.id] ?? kerjaBaru()).tahap === 'kosong') proses(a);
   }
@@ -271,10 +281,10 @@ export default function HalamanReview() {
                   nomor={nomorOf.get(a.id)!}
                   nomorMirip={a.dupeOf ? (nomorOf.get(a.dupeOf) ?? null) : null}
                   dipilih={pilihan.includes(a.id)}
-                  terbuka={terbuka === a.id}
+                  terbuka={terbuka.has(a.id)}
                   kerja={kerja[a.id] ?? kerjaBaru()}
                   onToggle={() => toggle(a)}
-                  onBuka={() => setTerbuka((t) => (t === a.id ? null : a.id))}
+                  onBuka={() => ubahTerbuka(a.id, !terbuka.has(a.id))}
                   onUbah={(k) => ubah(a.id, k)}
                   onUlangi={() => proses(a)}
                   onAmbilUlang={() => proses(a, (kerja[a.id]?.finalUrl ? 'extract' : 'resolve'))}

@@ -89,6 +89,9 @@ export default function ArticleCard({
   const sibuk = sedangProses(kerja.tahap);
   const adaGalat = Object.values(kerja.galat).some(Boolean);
   const jiplak = cekJiplakan(kerja.summary ?? '', kerja.fullText);
+  const kataRingkasan = hitungKata(kerja.summary ?? '');
+  const diLuarTarget = !!kerja.targetKata && kataRingkasan > 0
+    && (kataRingkasan < kerja.targetKata[0] || kataRingkasan > kerja.targetKata[1]);
 
   function unggahGambar(f: File | undefined) {
     if (!f) return;
@@ -282,9 +285,21 @@ export default function ArticleCard({
           <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             <div className="flex items-baseline justify-between">
               <span>{kerja.fullText ? 'Ringkasan' : '2. Ringkasan'}</span>
-              <span className="text-xs font-normal text-gray-500">
-                {hitungKata(kerja.summary ?? '')} kata
-                {kerja.targetKata && ` · target ${kerja.targetKata[0]}-${kerja.targetKata[1]}`}
+              {/*
+                Angkanya DIPERTAHANKAN, bukan disembunyikan: ringkasan 60 kata di
+                slot yang dirancang ~170 memang terlalu tipis, dan staf perlu
+                melihatnya. Yang dulu membingungkan adalah diamnya — "147 kata ·
+                target 160-180" lewat tanpa reaksi apa pun, jadi terbaca seperti
+                aturan yang tidak ditegakkan.
+                Sekarang di luar rentang diberi warna dan sebutan ("agak pendek"),
+                TANPA menghalangi apa pun: panjang-pendek itu soal selera, bukan
+                kesalahan. Kata "target" diganti "pas" supaya terbaca sebagai
+                saran, bukan syarat.
+              */}
+              <span className={`text-xs font-normal ${diLuarTarget ? 'text-amber-700' : 'text-gray-500'}`}>
+                {kataRingkasan} kata
+                {kerja.targetKata && ` · pas ${kerja.targetKata[0]}-${kerja.targetKata[1]}`}
+                {diLuarTarget && (kataRingkasan < kerja.targetKata![0] ? ' · agak pendek' : ' · agak panjang')}
               </span>
             </div>
             <textarea

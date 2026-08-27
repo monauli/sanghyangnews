@@ -206,7 +206,9 @@ export default function HalamanReview() {
       const k = kerja[a.id]!;
       return {
         id: a.id,
-        title: a.title,          // sudah lewat judulBersih() di toUi(), bukan judul mentah RSS
+        // judulBersih() di toUi() sudah membersihkan ekor nama media, tapi selalu
+        // ada yang lolos — kalau staf memperbaikinya sendiri, punya staf yang menang.
+        title: k.judul?.trim() || a.title,
         summary: k.summary!.trim(),
         url: k.finalUrl!,
         sourceName: a.sourceName,

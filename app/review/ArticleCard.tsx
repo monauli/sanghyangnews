@@ -6,6 +6,12 @@ import { cekJiplakan } from '@/lib/jiplak';
 
 export type Kerja = {
   tahap: 'kosong' | 'antre' | 'resolve' | 'extract' | 'summarize' | 'siap';
+  /**
+   * Judul tulisan tangan staf. null = pakai judul hasil judulBersih().
+   * Ada karena sebersih apa pun pembersih judulnya, akan selalu ada yang lolos —
+   * dan tanpa ini stafnya buntu: melihat judul kotor di PDF tanpa cara memperbaiki.
+   */
+  judul: string | null;
   finalUrl: string | null;
   fullText: string | null;
   imageUrl: string | null;
@@ -16,7 +22,7 @@ export type Kerja = {
 };
 
 export const kerjaBaru = (): Kerja => ({
-  tahap: 'kosong', finalUrl: null, fullText: null, imageUrl: null,
+  tahap: 'kosong', judul: null, finalUrl: null, fullText: null, imageUrl: null,
   summary: null, targetKata: null, warnings: [], galat: {},
 });
 
@@ -75,6 +81,11 @@ export default function ArticleCard({
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [ubahLink, setUbahLink] = useState(false);
+  const [ubahJudul, setUbahJudul] = useState(false);
+  // Dua nilai, sengaja beda: kotak isian boleh kosong sementara staf mengetik,
+  // tapi yang TAMPIL (dan yang masuk PDF) tidak boleh pernah kosong.
+  const judulEdit = kerja.judul ?? artikel.title;
+  const judulTampil = kerja.judul?.trim() || artikel.title;
   const sibuk = sedangProses(kerja.tahap);
   const adaGalat = Object.values(kerja.galat).some(Boolean);
   const jiplak = cekJiplakan(kerja.summary ?? '', kerja.fullText);
@@ -115,7 +126,7 @@ export default function ArticleCard({
 
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-snug text-gray-900">
-            <span className="text-gray-400">{nomor}.</span> {artikel.title}
+            <span className="text-gray-400">{nomor}.</span> {judulTampil}
           </p>
           <p className="mt-1 text-sm text-gray-500">
             {artikel.sourceName} · {tanggalPendek(artikel.pubDate)}
@@ -138,6 +149,11 @@ export default function ArticleCard({
             {kerja.warnings.includes('gambar-kecil') && (
               <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-800">
                 ⚠️ Gambar resolusi rendah
+              </span>
+            )}
+            {kerja.warnings.includes('berhalaman') && (
+              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-800">
+                ⚠️ Terbagi beberapa halaman
               </span>
             )}
           </div>
@@ -165,6 +181,44 @@ export default function ArticleCard({
 
       {dipilih && terbuka && (
         <div className="flex flex-col gap-4 border-t border-gray-100 bg-gray-50 p-4">
+          {/* Peringatan berhalaman muncul di dalam panel juga: di sinilah stafnya
+              berada waktu menyalin isi berita, jadi di sini pesannya berguna. */}
+          {kerja.warnings.includes('berhalaman') && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-normal text-amber-900">
+              ⚠️ <strong>Artikel ini terbagi beberapa halaman.</strong> Yang terbaca otomatis
+              biasanya halaman pertama saja. Buka beritanya, klik sampai halaman terakhir,
+              lalu salin isi SEMUA halaman ke kotak di bawah.
+            </p>
+          )}
+
+          {/* Judul disembunyikan di balik tombol, seperti Link sumber: yang normal
+              tidak perlu disentuh, yang kotor harus ada jalan keluarnya. */}
+          <div className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Judul
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-normal text-gray-900">{judulTampil}</span>
+              <button
+                type="button"
+                onClick={() => setUbahJudul((v) => !v)}
+                className="shrink-0 rounded border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 hover:border-green-800 hover:text-green-900"
+              >
+                {ubahJudul ? 'Tutup' : 'Ubah judul'}
+              </button>
+            </div>
+            {ubahJudul && (
+              <>
+                <input
+                  value={judulEdit}
+                  onChange={(e) => onUbah({ judul: e.target.value })}
+                  className="rounded-lg border border-gray-300 px-3 py-2 font-normal text-gray-900 focus:border-green-800 focus:outline-none"
+                />
+                <span className="text-xs font-normal text-gray-500">
+                  Judul inilah yang tercetak di PDF. Kosongkan untuk kembali ke judul asli.
+                </span>
+              </>
+            )}
+          </div>
+
           {/* Jalur isi-sendiri WAJIB tetap ada — kalau resolve gagal, ini satu-satunya
               cara user memberi alamat berita. Cukup disembunyikan di balik "Ubah",
               dan terbuka otomatis selama alamatnya memang belum ada. */}

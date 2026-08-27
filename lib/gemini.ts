@@ -22,7 +22,20 @@ import { GoogleGenAI } from '@google/genai';
  */
 export const model = () => process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const MAX_TEXT = 8000;
-const MIN_KATA_SUMBER = 300;   // di bawah ini, sumbernya terlalu tipis untuk diringkas
+/**
+ * Di bawah ini sumbernya benar-benar tipis. Dulu 300 dan itu terlalu tinggi:
+ * diukur pada 57 artikel yang berhasil dibaca, medianya 388 kata dan kuartil
+ * bawahnya 329 — jadi 300 memberi label pada 19% artikel yang sehat-sehat saja.
+ * Yang memicu penyelidikan: berita SatelitNews 272 kata, dua narasumber, angka
+ * lengkap, ringkasannya justru yang terbaik — tapi dilabeli "Sumber terbatas".
+ * Pada 180 hanya 4% yang kena, dan itu memang artikel rintisan.
+ *
+ * Perlu diingat: targetKata() SUDAH menyusutkan target ringkasan sebanding
+ * panjang sumbernya (272 kata → target 109-136, rasio 2,0x — sama sehatnya
+ * dengan sumber 300 kata). Jadi label ini bukan pengaman kualitas ringkasan,
+ * cuma pemberi tahu bahwa bahannya sedikit.
+ */
+const MIN_KATA_SUMBER = 180;
 
 export type ArtikelUntukRingkas = { title: string; sourceName: string; fullText: string };
 

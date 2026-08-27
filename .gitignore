@@ -49,3 +49,4 @@ scripts/.regresi.pdf
 scripts/.vercel-regresi.pdf
 .playwright-mcp/
 scripts/.portal-sampel.json
+scripts/.h-*.html

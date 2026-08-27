@@ -116,6 +116,41 @@ async function imageWidth(html: string, imgUrl: string): Promise<number | null> 
   }
 }
 
+/**
+ * Apakah artikelnya terbagi beberapa halaman?
+ *
+ * Penanda yang TIDAK dipakai, karena terukur salah semua: `rel="next"`,
+ * `class="pagination"`, dan `aria-label="…page…"`. Di kabar6 dan biem
+ * `rel="next"` menunjuk ARTIKEL LAIN (tautan pos berikutnya), dan di
+ * satelitnews "pagination" cuma nama kelas modul tema. Empat artikel yang
+ * sama sekali tidak berhalaman ikut kena semuanya.
+ *
+ * Yang dipakai: tautan yang mengarah ke ARTIKEL INI JUGA ditambah nomor
+ * halaman — `?page=2`, `&page=2`, `/page/2`, atau `/2` di ujung. Itu satu-
+ * satunya pola yang tidak bisa tertukar dengan navigasi situs. Terukur pada
+ * jatim.suaramerdeka.com: `<a class="paging__link" href="<url artikel>?page=2">`.
+ */
+export function berhalaman(html: string, url: string): boolean {
+  let dasar: string;
+  try {
+    const u = new URL(url);
+    dasar = (u.origin + u.pathname).replace(/\/+$/, '');
+  } catch {
+    return false;
+  }
+  const lolos = (href: string) => {
+    let abs: string;
+    try { abs = new URL(href, url).href; } catch { return false; }
+    if (!abs.startsWith(dasar)) return false;
+    const sisa = abs.slice(dasar.length);
+    return /^[?&](?:[^#]*&)?page=([2-9]|[1-9]\d)\b/.test(sisa) || /^\/(?:page\/)?([2-9]|[1-9]\d)\/?$/.test(sisa);
+  };
+  for (const m of html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)) {
+    if (lolos(m[1])) return true;
+  }
+  return false;
+}
+
 export async function extractOne(url: string): Promise<ExtractResult> {
   const base: ExtractResult = {
     url, title: null, fullText: null, imageUrl: null, imageWidth: null,
@@ -149,6 +184,10 @@ export async function extractOne(url: string): Promise<ExtractResult> {
 
   if (!fullText) warnings.push('teks-kosong');
   else if (fullText.length < MIN_TEXT) warnings.push('teks-pendek');   // kemungkinan butuh JS render
+
+  // Bahaya diam-diam: kalau artikelnya berhalaman, yang terbaca cuma halaman 1
+  // dan hasilnya terlihat seperti artikel pendek biasa, bukan seperti kegagalan.
+  if (berhalaman(html, url)) warnings.push('berhalaman');
 
   const imageUrl = meta(html, 'og:image') ?? meta(html, 'twitter:image');
   let width: number | null = null;

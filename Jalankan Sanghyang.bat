@@ -3,7 +3,12 @@ setlocal
 title Sanghyang News - JANGAN TUTUP JENDELA INI
 cd /d "%~dp0"
 
-set "ALAMAT=http://localhost:3000"
+REM Keluaran npm/Next memakai UTF-8. Tanpa ini staf melihat "â–²" dan
+REM "âœ“" berserakan dan mengira ada yang rusak. Pesan kita sendiri
+REM semuanya ASCII, jadi tidak terpengaruh.
+chcp 65001 >nul 2>nul
+
+set "DAFTAR_PORT=3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010"
 
 echo.
 echo ==========================================================
@@ -11,26 +16,32 @@ echo    Sanghyang News
 echo ==========================================================
 echo.
 
-REM Aplikasinya mungkin sudah dinyalakan di jendela lain dan staf lupa.
-REM Kalau alamatnya sudah hidup, JANGAN nyalakan yang kedua: cukup buka
-REM browsernya. Menyalakan yang kedua bikin jendela ini mati sendiri, dan
-REM staf mengira itu error lalu menutup jendela pertama - yang justru
-REM mematikan aplikasi yang sedang dipakai.
-REM Dua findstr, bukan satu: findstr ":3000" saja ikut mencocokkan :30000.
-netstat -an | findstr "LISTENING" | findstr /c:":3000 " >nul 2>nul
-if errorlevel 1 goto :alamat_kosong
+REM Nomor port tidak dipatok ke 3000. Program lain boleh saja memakainya -
+REM aplikasi ini jalan sama baiknya di 3001. Staf tidak perlu tahu angkanya
+REM dan tidak perlu disuruh menutup program lain.
+REM
+REM Dua sapuan, urutannya penting:
+REM   1. cari Sanghyang yang SUDAH jalan di salah satu port
+REM   2. kalau tidak ada, baru cari port kosong pertama
+REM Kalau dibalik, staf yang klik dua kali lima kali akan menjalankan lima
+REM aplikasi di lima port berbeda.
 
-REM Alamatnya terpakai - tapi belum tentu oleh aplikasi ini. Terbukti di
-REM komputer pengembang: aplikasi Next.js lain memakai alamat yang sama.
-REM Kalau langsung dianggap "sudah jalan", browser terbuka ke aplikasi
-REM yang salah dan staf tidak akan paham kenapa. Jadi ditanya dulu.
+REM curl dipakai untuk memastikan yang menjawab memang aplikasi ini, bukan
+REM aplikasi lain yang kebetulan memakai portnya. Ada bawaan Windows 10
+REM sejak 2018. Kalau tidak ada, sapuan 1 dilewati: aplikasi tetap jalan
+REM di port kosong, cuma deteksi "sudah jalan" tidak aktif.
+set "ADA_CURL=1"
 where curl >nul 2>nul
-if errorlevel 1 goto :sudah_jalan
-curl -s -m 5 "%ALAMAT%/login" 2>nul | findstr /i "Sanghyang" >nul 2>nul
-if errorlevel 1 goto :dipakai_lain
-goto :sudah_jalan
+if errorlevel 1 set "ADA_CURL="
 
-:alamat_kosong
+set "PORT_JALAN="
+for %%p in (%DAFTAR_PORT%) do call :cari_sanghyang %%p
+if defined PORT_JALAN goto :sudah_jalan
+
+set "PORT_KOSONG="
+for %%p in (%DAFTAR_PORT%) do call :cari_kosong %%p
+if not defined PORT_KOSONG goto :semua_penuh
+set "ALAMAT=http://localhost:%PORT_KOSONG%"
 
 where node >nul 2>nul
 if errorlevel 1 goto :node_tidak_ada
@@ -49,24 +60,24 @@ echo.
 REM Menunggu di jendela terpisah: begitu aplikasinya siap menerima,
 REM browser dibuka. Kalau 90 detik belum siap juga, berhenti menunggu
 REM supaya tidak ada jendela yang menggantung diam-diam.
-start "" /min powershell -NoProfile -Command "$n=0; $siap=$false; while ($n -lt 180) { try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',3000); $c.Close(); $siap=$true; break } catch { Start-Sleep -Milliseconds 500; $n++ } }; if ($siap) { Start-Sleep -Milliseconds 700; Start-Process 'http://localhost:3000' }"
+start "" /min powershell -NoProfile -Command "$n=0; $siap=$false; while ($n -lt 180) { try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',%PORT_KOSONG%); $c.Close(); $siap=$true; break } catch { Start-Sleep -Milliseconds 500; $n++ } }; if ($siap) { Start-Sleep -Milliseconds 700; Start-Process '%ALAMAT%' }"
 
 echo ----------------------------------------------------------
 echo.
 echo   APLIKASI BERJALAN
 echo.
-echo   Alamatnya: %ALAMAT%
+echo   Browser sudah dibuka sendiri.
 echo.
 echo   JANGAN TUTUP JENDELA INI selama memakai aplikasi.
 echo   Kalau sudah selesai, tutup jendela ini.
 echo.
-echo   Kalau browsernya tidak terbuka sendiri, buka browser
-echo   lalu ketik alamat di atas.
+echo   Kalau browsernya tidak muncul, buka browser lalu
+echo   ketik alamat ini:  %ALAMAT%
 echo.
 echo ----------------------------------------------------------
 echo.
 
-call npm start
+call npm start -- -p %PORT_KOSONG%
 
 echo.
 echo ==========================================================
@@ -85,6 +96,7 @@ goto :habis
 
 
 :sudah_jalan
+set "ALAMAT=http://localhost:%PORT_JALAN%"
 start "" "%ALAMAT%"
 echo ==========================================================
 echo    APLIKASI SUDAH BERJALAN
@@ -102,21 +114,16 @@ echo.
 goto :habis
 
 
-:dipakai_lain
+:semua_penuh
 echo ==========================================================
-echo    ALAMATNYA SEDANG DIPAKAI PROGRAM LAIN
+echo    BELUM BISA DIJALANKAN
 echo ==========================================================
 echo.
-echo  Alamat %ALAMAT% sudah dipakai
-echo  program lain di komputer ini, bukan aplikasi Sanghyang.
+echo  Komputer ini sedang menjalankan banyak program lain,
+echo  sampai aplikasi ini tidak kebagian tempat.
 echo.
-echo  Aplikasi ini tidak bisa memakai alamat yang sama.
-echo.
-echo  Yang harus dilakukan:
-echo    1. Tutup program lain itu dulu
-echo       (biasanya jendela hitam serupa milik aplikasi lain)
-echo    2. Kalau tidak tahu program apa, RESTART komputer
-echo    3. Setelah itu jalankan lagi file ini
+echo  Ini jarang terjadi. Yang paling cepat: RESTART komputer,
+echo  lalu jalankan lagi file ini.
 echo.
 goto :habis
 
@@ -182,3 +189,37 @@ echo ==========================================================
 echo.
 pause
 endlocal
+exit /b
+
+
+REM ---- subrutin pencari port ----
+REM Dipanggil dengan call, jadi variabelnya tetap terbaca di luar.
+REM Batch tidak punya break di dalam for, jadi tiap subrutin langsung
+REM keluar begitu jawabannya sudah ketemu.
+
+REM Port %1 hidup DAN yang menjawab aplikasi ini? Simpan nomornya.
+:cari_sanghyang
+if defined PORT_JALAN goto :eof
+if not defined ADA_CURL goto :eof
+call :port_hidup %1
+if errorlevel 1 goto :eof
+curl -s -m 5 "http://localhost:%1/login" 2>nul | findstr /i "Sanghyang" >nul 2>nul
+if errorlevel 1 goto :eof
+set "PORT_JALAN=%1"
+goto :eof
+
+REM Port %1 belum dipakai siapa pun? Simpan nomornya.
+:cari_kosong
+if defined PORT_KOSONG goto :eof
+call :port_hidup %1
+if not errorlevel 1 goto :eof
+set "PORT_KOSONG=%1"
+goto :eof
+
+REM errorlevel 0 = ada yang mendengarkan di port %1, 1 = kosong.
+REM Dua findstr, bukan satu: findstr ":3000" ikut mencocokkan :30000.
+REM Spasi di ":%1 " itu yang memotongnya - netstat memberi jarak setelah
+REM nomor port di kolom alamat lokal.
+:port_hidup
+netstat -an | findstr "LISTENING" | findstr /c:":%1 " >nul 2>nul
+goto :eof

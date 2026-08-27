@@ -20,8 +20,8 @@ Tidak perlu mengetik apa pun.
 Setelah PDF-nya terunduh dan kamu sudah selesai, tutup browser lalu tutup
 jendela hitam itu.
 
-Kalau browsernya tidak terbuka sendiri, buka browser dan ketik alamat ini:
-`http://localhost:3000`
+Kalau browsernya tidak terbuka sendiri, buka browser dan ketik alamat yang
+tertulis di jendela hitam, di baris **"ketik alamat ini"**.
 
 ### Kalau muncul tulisan "BELUM SIAP DIJALANKAN"
 
@@ -130,11 +130,11 @@ lalu coba unduh lagi. IDM suka mencegat unduhan PDF sampai berkasnya jadi kosong
 | **Gambarnya kosong** | Klik **Upload gambar** dan pilih gambar sendiri (JPG/PNG, maksimal 5 MB) |
 | **Tombol "Buat Newsletter" abu-abu** | Ada berita terpilih yang belum punya ringkasan atau belum punya link. Tulisan di atas tombol memberi tahu berapa yang belum siap |
 | **Berita yang dicari tidak ada** | Coba buka kelompok **Berita Lain**. Kalau tetap tidak ada, ulangi pencarian |
-| **Pencarian sangat lama (>2 menit)** | Tutup tab, buka lagi `http://localhost:3000`, ulangi |
-| **Halaman kosong / error** | Kembali ke `http://localhost:3000` dan mulai lagi dari awal |
+| **Pencarian sangat lama (>2 menit)** | Tutup tab, buka lagi alamat yang tertulis di jendela hitam, ulangi |
+| **Halaman kosong / error** | Kembali ke alamat yang tertulis di jendela hitam dan mulai lagi dari awal |
 | **Jendela hitamnya tertutup sendiri** | Buka lagi `Jalankan Sanghyang.bat`. Pekerjaan di tab browser hilang, harus mulai dari awal |
 | **"APLIKASI SUDAH BERJALAN"** | Bukan error. Kamu klik `Jalankan Sanghyang.bat` dua kali. Browser sudah dibuka; tutup jendela yang baru ini saja, **jangan tutup yang satunya** |
-| **"ALAMATNYA SEDANG DIPAKAI PROGRAM LAIN"** | Ada program lain yang memakai `localhost:3000`. Tutup program itu, atau restart komputer, lalu coba lagi |
+| **"BELUM BISA DIJALANKAN" (banyak program lain)** | Jarang terjadi. Restart komputer lalu coba lagi |
 
 ---
 

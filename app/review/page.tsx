@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StepIndicator from '../components/StepIndicator';
 import ArticleCard, { kerjaBaru, sedangProses, type Kerja } from './ArticleCard';
-import { KUNCI, JUDUL_GRUP, grupOf, type Grup, type UiArticle, type ArtikelTerpilih } from '@/lib/ui';
+import { KUNCI, JUDUL_GRUP, grupOf, ukuranTampak, type Grup, type UiArticle, type ArtikelTerpilih } from '@/lib/ui';
 import { cekJiplakan } from '@/lib/jiplak';
 import { batasi } from '@/lib/antre';
 
@@ -74,6 +74,22 @@ export default function HalamanReview() {
     artikel?.forEach((a) => g[grupOf(a.score)].push(a));
     return g;
   }, [artikel]);
+
+  /**
+   * Berapa anggota gugus yang benar-benar TERLIHAT di grup tampilan yang sama.
+   *
+   * grupUkuran dari lib/filter menghitung seluruh korpus. Itu jujur tapi tidak
+   * bisa diverifikasi: badge bilang 23, staf menghitung 9 kartu di Berita Utama,
+   * dan sisanya ada di grup yang tertutup. Selisih yang tidak bisa dijelaskan
+   * membuat orang curiga pada seluruh aplikasi, bukan cuma pada badge-nya.
+   *
+   * Wakil gugus selalu ikut terhitung di grup teratas gugusnya — wakil = skor
+   * tertinggi, dan grup tampilan ditentukan skor.
+   */
+  const ukuranGugus = useMemo(
+    () => new Map(URUTAN_GRUP.flatMap((g) => [...ukuranTampak(perGrup[g])])),
+    [perGrup],
+  );
 
   // Pekerjaan yang mengantre bisa baru jalan puluhan detik kemudian — saat itu
   // `kerja` dari closure sudah basi. Ref-nya selalu yang terkini.
@@ -280,6 +296,7 @@ export default function HalamanReview() {
                   artikel={a}
                   nomor={nomorOf.get(a.id)!}
                   wakilGugus={!a.dupeOf}
+                  ukuranTampak={ukuranGugus.get(a.id) ?? 1}
                   dipilih={pilihan.includes(a.id)}
                   terbuka={terbuka.has(a.id)}
                   kerja={kerja[a.id] ?? kerjaBaru()}

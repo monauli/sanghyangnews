@@ -5,6 +5,7 @@
  */
 import { filterArticles } from '../lib/filter';
 import { scoreArticles } from '../lib/scoring';
+import { ukuranTampak, type UiArticle } from '../lib/ui';
 import type { RawArticle } from '../lib/googlenews';
 
 let gagal = 0;
@@ -84,6 +85,22 @@ cek(wakil[0].score === Math.max(...anggota.map((a) => a.score)), 'wakil = skor t
 cek(anggota.every((a) => a.grupUkuran === 3), 'ukuran gugus tercatat sama di semua anggota');
 cek(anggota.filter((a) => a.dupeOf).every((a) => a.dupeOf === wakil[0].id),
   'anggota non-wakil menunjuk ID wakil, bukan akar sementara');
+
+console.log('\n  ── HITUNGAN GUGUS DIBATASI KE YANG TERLIHAT ──');
+// Satu gugus 4 artikel, tapi hanya 2 yang tampil di grup ini.
+const ui = (id: string, dupeOf: string | null): UiArticle => ({
+  id, title: id, link: '', pubDate: '', sourceName: '', location: '',
+  score: 0, reasons: [], hits: 1, dupeOf, grupUkuran: 4,
+});
+const utama = [ui('w', null), ui('b1', 'w')];              // wakil + 1 anggota
+const lain = [ui('b2', 'w'), ui('b3', 'w'), ui('sendiri', null)];
+const mUtama = ukuranTampak(utama);
+const mLain = ukuranTampak(lain);
+cek(mUtama.get('w') === 2, `wakil dihitung 2 (yang terlihat), bukan 4 (dapat ${mUtama.get('w')})`);
+cek(mUtama.get('b1') === 2, 'anggota di grup yang sama ikut angka yang sama');
+cek(mLain.get('b2') === 2, `dua anggota di grup lain dihitung 2 (dapat ${mLain.get('b2')})`);
+cek(mLain.get('sendiri') === 1, 'artikel tanpa kembaran tetap 1 → badge tidak muncul');
+cek(ukuranTampak([ui('x', 'w')]).get('x') === 1, 'anggota sendirian di grupnya → 1, badge hilang');
 
 console.log(`\n  ${gagal === 0 ? '✅ semua benar' : `🔴 ${gagal} salah`}`);
 process.exit(gagal === 0 ? 0 : 1);

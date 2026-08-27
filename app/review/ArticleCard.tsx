@@ -64,6 +64,7 @@ type Props = {
   artikel: UiArticle;
   nomor: number;
   wakilGugus: boolean;   // artikel ini yang berskor tertinggi di gugusnya
+  ukuranTampak: number;  // anggota gugus yang BENAR-BENAR terlihat di grup tampilan ini
   dipilih: boolean;
   terbuka: boolean;
   kerja: Kerja;
@@ -76,7 +77,7 @@ type Props = {
 };
 
 export default function ArticleCard({
-  artikel, nomor, wakilGugus, dipilih, terbuka, kerja,
+  artikel, nomor, wakilGugus, ukuranTampak, dipilih, terbuka, kerja,
   onToggle, onBuka, onUbah, onUlangi, onAmbilUlang, onBuatUlangRingkasan,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -147,13 +148,21 @@ export default function ArticleCard({
               (2) yang perlu diketahui staf bukan "mirip dengan siapa", tapi
                   "ada berapa" — 12 berita Krakatau yang sama cuma perlu satu.
               Ukuran gugus menjawab itu langsung, tanpa perlu mencari apa pun.
+
+              Angkanya ukuranTampak, BUKAN artikel.grupUkuran: yang dihitung
+              cuma anggota yang terlihat di grup tampilan ini. Gugus Krakatau
+              berisi 23 artikel se-korpus, tapi di Berita Utama cuma 9 yang
+              muncul — staf yang menghitung di layar menemukan 9, tidak ketemu
+              23, lalu curiga pada seluruh aplikasi, bukan cuma badge ini.
+              Angka yang bisa diverifikasi sendiri lebih berharga daripada
+              angka yang lebih besar.
             */}
-            {artikel.grupUkuran > 1 && (
+            {ukuranTampak > 1 && (
               <span className={`rounded-full px-2.5 py-0.5 text-xs ${
                 wakilGugus ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-800'}`}>
                 {wakilGugus
-                  ? `⭐ Paling cocok dari ${artikel.grupUkuran} berita serupa`
-                  : `⚠️ 1 dari ${artikel.grupUkuran} berita serupa`}
+                  ? `⭐ Paling cocok dari ${ukuranTampak} berita serupa`
+                  : `⚠️ 1 dari ${ukuranTampak} berita serupa`}
               </span>
             )}
             {kerja.warnings.includes('artikel-pendek') && (

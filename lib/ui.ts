@@ -79,6 +79,19 @@ export const toUi = (a: ScoredArticle): UiArticle => ({
   reasons: a.reasons, hits: a.hits, dupeOf: a.dupeOf, grupUkuran: a.grupUkuran,
 });
 
+/**
+ * Anggota gugus berita serupa yang benar-benar terlihat dalam SATU daftar.
+ * Dipakai per grup tampilan, bukan atas seluruh korpus: badge yang menyebut 23
+ * sementara di layar cuma ada 9 kartu membuat staf mengira aplikasinya salah.
+ * Kunci gugus = ID wakil (dupeOf), atau ID sendiri kalau dia wakilnya.
+ */
+export function ukuranTampak(list: UiArticle[]): Map<string, number> {
+  const kunci = (a: UiArticle) => a.dupeOf ?? a.id;
+  const n = new Map<string, number>();
+  for (const a of list) n.set(kunci(a), (n.get(kunci(a)) ?? 0) + 1);
+  return new Map(list.map((a) => [a.id, n.get(kunci(a))!]));
+}
+
 /** Artikel terpilih yang dibawa ke halaman preview. */
 export type ArtikelTerpilih = {
   id: string;

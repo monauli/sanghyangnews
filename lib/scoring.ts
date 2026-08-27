@@ -58,23 +58,26 @@ function scoreOne(it: FilteredArticle): ScoredArticle {
 }
 
 /**
- * Skor + urut tertinggi dulu + balik arah penanda duplikat.
- * Setelah diurut, yang skornya lebih RENDAH yang menunjuk ke yang lebih tinggi —
- * kalau terbalik, artikel bagus terlihat seperti duplikat dari artikel jelek.
+ * Skor + urut tertinggi dulu + tentukan wakil tiap gugus berita serupa.
+ *
+ * filterArticles() sudah mengelompokkan yang mirip dan menaruh ID akar gugus di
+ * dupeOf. Di sini akar itu diganti WAKIL sebenarnya: anggota berskor tertinggi —
+ * itu yang paling mungkin dipakai staf. Wakilnya sendiri dupeOf-nya null, supaya
+ * kartunya bisa ditandai berbeda dari anggota lain.
  */
 export function scoreArticles(items: FilteredArticle[]): ScoredArticle[] {
   const sorted = items.map(scoreOne).sort((x, y) => y.score - x.score);
 
-  const rank = new Map(sorted.map((a, i) => [a.id, i]));   // makin kecil = makin tinggi
-  const byId = new Map(sorted.map((a) => [a.id, a]));
-  const pairs = sorted.filter((a) => a.dupeOf).map((a) => [a.id, a.dupeOf!] as const);
-
-  for (const a of sorted) a.dupeOf = null;
-  for (const [x, y] of pairs) {
-    if (!rank.has(y)) continue;
-    const [lo, hi] = rank.get(x)! > rank.get(y)! ? [x, y] : [y, x];
-    const cur = byId.get(lo)!.dupeOf;
-    if (!cur || rank.get(hi)! < rank.get(cur)!) byId.get(lo)!.dupeOf = hi;
+  const gugus = new Map<string, ScoredArticle[]>();
+  for (const a of sorted) {
+    if (!a.dupeOf) continue;
+    (gugus.get(a.dupeOf) ?? gugus.set(a.dupeOf, []).get(a.dupeOf)!).push(a);
+  }
+  for (const isi of gugus.values()) {
+    // sorted sudah urut skor menurun, jadi anggota pertama = skor tertinggi.
+    const wakil = isi[0];
+    for (const a of isi) a.dupeOf = a === wakil ? null : wakil.id;
+    for (const a of isi) a.grupUkuran = isi.length;
   }
 
   return sorted;

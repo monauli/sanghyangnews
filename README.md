@@ -325,6 +325,7 @@ vercel.json  region sin1 + maxDuration 60 detik
 | `test-error-paths.ts` | Portal 403, link rusak, kunci Gemini salah |
 | `test-urlaman.ts` | Penjaga SSRF — alamat internal ditolak, alamat portal diterima |
 | `test-export.ts` | Generate PDF lalu bongkar isinya (butuh `npm run dev` jalan) |
+| `test-filter.ts` | Saringan lokasi "Serang" (kota vs kata kerja) + pengelompokan berita serupa |
 | `test-judul.ts` | Pembersih ekor nama media di judul RSS — termasuk judul bertanda hubung yang harus tetap utuh |
 | `test-berhalaman.ts` | Deteksi artikel yang terbagi beberapa halaman, diuji dengan HTML asli lima portal |
 | `test-portal.ts` | Survei portal: berapa persen artikel terbaca, dan kenapa yang gagal itu gagal. Bisa membandingkan lokal vs Vercel (`VERCEL_APP_URL=...`). Tidak memanggil Gemini |

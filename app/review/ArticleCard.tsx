@@ -63,7 +63,7 @@ function pendekUrl(u: string): string {
 type Props = {
   artikel: UiArticle;
   nomor: number;
-  nomorMirip: number | null;
+  wakilGugus: boolean;   // artikel ini yang berskor tertinggi di gugusnya
   dipilih: boolean;
   terbuka: boolean;
   kerja: Kerja;
@@ -76,7 +76,7 @@ type Props = {
 };
 
 export default function ArticleCard({
-  artikel, nomor, nomorMirip, dipilih, terbuka, kerja,
+  artikel, nomor, wakilGugus, dipilih, terbuka, kerja,
   onToggle, onBuka, onUbah, onUlangi, onAmbilUlang, onBuatUlangRingkasan,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -139,9 +139,21 @@ export default function ArticleCard({
             {badge(artikel.reasons).map((b) => (
               <span key={b} className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs text-green-900">{b}</span>
             ))}
-            {nomorMirip && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-800">
-                ⚠️ Mirip dengan berita #{nomorMirip}
+            {/*
+              Dulu "⚠️ Mirip dengan berita #N". Diganti karena dua hal:
+              (1) #N memaksa staf mencari artikel itu, dan kalau wakilnya ada di
+                  grup skor lain nomornya tidak ketemu sama sekali — badge-nya
+                  hilang padahal duplikatnya terdeteksi;
+              (2) yang perlu diketahui staf bukan "mirip dengan siapa", tapi
+                  "ada berapa" — 12 berita Krakatau yang sama cuma perlu satu.
+              Ukuran gugus menjawab itu langsung, tanpa perlu mencari apa pun.
+            */}
+            {artikel.grupUkuran > 1 && (
+              <span className={`rounded-full px-2.5 py-0.5 text-xs ${
+                wakilGugus ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-800'}`}>
+                {wakilGugus
+                  ? `⭐ Paling cocok dari ${artikel.grupUkuran} berita serupa`
+                  : `⚠️ 1 dari ${artikel.grupUkuran} berita serupa`}
               </span>
             )}
             {kerja.warnings.includes('artikel-pendek') && (

@@ -21,6 +21,39 @@ export const QUERIES = [
 // Lokasi wajib muncul di JUDUL (lowercase)
 export const LOC_KEYS = ['anyer', 'carita', 'cinangka', 'cikoneng', 'serang', 'cilegon', 'banten'];
 
+/**
+ * "serang" satu-satunya kata lokasi yang juga KATA KERJA bahasa Indonesia
+ * ("saling serang", "Israel kembali serang Gaza"). Kata lokasi lain tidak ambigu.
+ *
+ * Karena itu "serang" saja tidak cukup meloloskan artikel — harus ada penguat
+ * konteks Banten di judul atau ringkasannya. Menambah nama kota luar ke
+ * REGIONAL_BLACKLIST tidak akan pernah selesai: Purbalingga hari ini, kota lain
+ * besok. Yang disyaratkan konteksnya, bukan daftar larangan.
+ */
+export const PENGUAT_SERANG = [
+  'banten',
+  'anyer', 'carita', 'cinangka', 'cikoneng', 'cilegon',
+
+  // Jabatan atau satuan administratif + "Serang" — tidak mungkin kata kerja.
+  // Ditulis sebagai satu pola, bukan didaftar satu-satu: "Bupati Serang",
+  // "Pemkab Serang", "DPRD Serang", "Polres Serang", "Dinas Pariwisata Serang"
+  // semuanya tertangkap tanpa perlu menambah entri tiap kali ketemu yang baru.
+  '(?:bupati|wakil bupati|wali ?kota|pemkab|pemkot|pemda|kabupaten|kab\\.?|kota'
+    + '|dprd|polres(?:ta)?|polda|kejari|kejaksaan|kodim|lapas|rsud'
+    + '|bapenda|bappeda|bpbd|disporapar|dishub|disdik|dinkes'
+    + '|dinas [a-z ]{0,20}) serang',
+
+  'serang (?:raya|timur|barat|utara|selatan)',
+  // Ruas tol di Banten. Pemisahnya bisa spasi, hubung, atau EN-DASH — portal
+  // menulis "Serang – Panimbang" dengan – , dan pola [ -] saja melewatkannya.
+  'serang\\s*[-–—]?\\s*panimbang',
+
+  // "di Serang" hampir selalu keterangan TEMPAT ("Festival Ngabring di Serang").
+  // Sebagai kata kerja bentuknya "saling serang" / "kembali serang" /
+  // "ancam serang" — tidak pernah didahului "di".
+  'di serang',
+];
+
 // ---------- BOBOT SKOR ----------
 export type WeightGroup = { score: number; words: string[] };
 

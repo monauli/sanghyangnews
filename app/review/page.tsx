@@ -62,7 +62,7 @@ export default function HalamanReview() {
     setAdaQueryGagal(Number(sessionStorage.getItem(KUNCI.gagal) ?? 0) > 0);
   }, [router]);
 
-  // Nomor tampilan dipakai badge "Mirip dengan berita #N".
+  // Nomor urut tampilan pada kartu.
   const nomorOf = useMemo(() => {
     const m = new Map<string, number>();
     artikel?.forEach((a, i) => m.set(a.id, i + 1));
@@ -279,7 +279,7 @@ export default function HalamanReview() {
                   key={a.id}
                   artikel={a}
                   nomor={nomorOf.get(a.id)!}
-                  nomorMirip={a.dupeOf ? (nomorOf.get(a.dupeOf) ?? null) : null}
+                  wakilGugus={!a.dupeOf}
                   dipilih={pilihan.includes(a.id)}
                   terbuka={terbuka.has(a.id)}
                   kerja={kerja[a.id] ?? kerjaBaru()}

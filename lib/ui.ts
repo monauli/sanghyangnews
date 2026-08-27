@@ -19,7 +19,8 @@ export type UiArticle = {
   score: number;      // hanya untuk mengurutkan & mengelompokkan — JANGAN ditampilkan
   reasons: string[];
   hits: number;
-  dupeOf: string | null;
+  dupeOf: string | null;   // ID wakil gugus; null = artikel ini wakilnya, atau tidak punya kembaran
+  grupUkuran: number;      // banyak artikel dalam gugus, termasuk dirinya
 };
 
 /** Akhiran alamat situs, dibuang sebelum membandingkan nama media. */
@@ -75,7 +76,7 @@ export function judulBersih(title: string, sourceName: string): string {
 export const toUi = (a: ScoredArticle): UiArticle => ({
   id: a.id, title: judulBersih(a.title, a.sourceName), link: a.link, pubDate: a.pubDate,
   sourceName: a.sourceName, location: a.location, score: a.score,
-  reasons: a.reasons, hits: a.hits, dupeOf: a.dupeOf,
+  reasons: a.reasons, hits: a.hits, dupeOf: a.dupeOf, grupUkuran: a.grupUkuran,
 });
 
 /** Artikel terpilih yang dibawa ke halaman preview. */

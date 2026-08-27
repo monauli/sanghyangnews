@@ -33,21 +33,29 @@
     /extract/route.ts      → ambil isi artikel + gambar
     /summarize/route.ts    → generate summary (Gemini)
     /export/route.ts       → generate PDF
+    /login/route.ts        → tukar sandi jadi cookie sesi
+proxy.ts                   → penjaga sandi (dulu middleware.ts, sudah usang)
 /lib
   googlenews.ts            → build query + fetch + parse RSS
   resolver.ts              → batchexecute (KRITIS — lihat §5)
-  filter.ts                → blacklist, lokasi, dedupe
-  scoring.ts               → pembobotan tema
-  extractor.ts             → full text + og:image
+  judul.ts                 → judulBersih(): kupas ekor " - NamaSumber"
+  filter.ts                → blacklist, lokasi, dedupe, gugus berita serupa
+  scoring.ts               → pembobotan tema + pilih wakil gugus
+  extractor.ts             → full text + og:image + deteksi artikel berhalaman
   gemini.ts                → wrapper + sanitizer
-  pdf.ts                   → HTML → PDF
+  jiplak.ts                → cek ringkasan tidak menyalin sumber
+  urlaman.ts               → tolak URL ke jaringan lokal (SSRF)
+  sandi.ts                 → banding sandi tahan timing attack
+  antre.ts                 → batasi laju panggilan Gemini di sisi browser
+  ui.ts                    → bentuk data untuk halaman + badge + tanggal
 /config
   keywords.ts              → semua daftar kata & bobot
+  thresholds.ts            → ambang skor & ambang kemiripan
 /templates
-  newsletter.html
-/types
-  index.ts
+  newsletter.ts
 ```
+
+`/types` tidak ada — tiap modul mengekspor tipenya sendiri.
 
 ## 3. Tipe Data
 
@@ -58,26 +66,32 @@ type RawArticle = {
   pubDate: string;
   desc: string;
   sourceName: string;
+  sourceUrl: string;     // atribut url pada <source> — dipakai cek portal iklan
   query: string;         // query yang menemukannya
 };
 
-type ScoredArticle = RawArticle & {
+type FilteredArticle = RawArticle & {
   id: string;            // dari segmen link Google
+  judul: string;         // title tanpa ekor nama media — lihat §6
   location: string;      // "cilegon"
-  score: number;
-  reasons: string[];     // ["🏖wisata", "💰investasi"]
   hits: number;          // ditemukan di berapa query
-  dupeOf: number | null; // index artikel mirip
+  dupeOf: string | null; // ID WAKIL gugus, bukan index; null = dia wakilnya
+  grupUkuran: number;    // banyak artikel dalam gugus, termasuk dirinya
 };
 
-type FullArticle = ScoredArticle & {
-  finalUrl: string | null;
-  fullText: string | null;
-  imageUrl: string | null;
-  summary: string | null;
-  errors: string[];
+type ScoredArticle = FilteredArticle & {
+  score: number;
+  reasons: string[];     // ["🏖wisata", "💰investasi"]
 };
 ```
+
+`dupeOf` dulu `number` (index array). Diganti ID karena `scoreArticles()`
+mengurutkan ulang array — index-nya jadi menunjuk artikel yang salah.
+
+Tidak ada `FullArticle`. Hasil resolve/extract/summarize tinggal di state
+halaman review (`Kerja` di `app/review/ArticleCard.tsx`), tidak pernah digabung
+balik ke artikel: yang perlu disimpan cuma untuk artikel terpilih, dan bentuknya
+berubah tiap kali user mengedit.
 
 ## 4. Modul: Google News (`lib/googlenews.ts`)
 
@@ -109,7 +123,7 @@ https://news.google.com/rss/search
 
 ## 5. Modul: Resolver (`lib/resolver.ts`) — KRITIS
 
-🔴 **Jangan tulis ulang dari nol. Salin dari `spike5.mjs` fungsi `resolveOne()`.**
+🔴 **Jangan tulis ulang dari nol.** Sudah ada di `lib/resolver.ts`, disalin dari `spike3.mjs` fungsi `resolveOne()`.
 
 ### Kenapa strategi lama gagal
 
@@ -162,13 +176,47 @@ Politik praktis  : pilkada, pemilu, kampanye, partai
 ```
 
 **2. Lokasi wajib ada di JUDUL** — bukan hanya di isi.
-Aturan ini membuang berita seperti *"RW08 Kelurahan Depok ajak wisata ke Anyer"* — secara teknis menyebut Anyer, tapi tidak relevan untuk newsletter hotel. Terbukti membuang 114 artikel, semuanya memang tidak relevan.
+Aturan ini membuang berita seperti *"RW08 Kelurahan Depok ajak wisata ke Anyer"* — secara teknis menyebut Anyer, tapi tidak relevan untuk newsletter hotel. Terukur membuang ~195 artikel per bulan, semuanya memang tidak relevan.
+
+**Judul yang dibandingkan WAJIB sudah bersih.** Judul RSS Google selalu
+berakhiran `" - NamaSumber"`, kadang dua kali kalau portalnya menempel nama
+sendiri lebih dulu. `filterArticles()` membersihkannya sekali di awal dengan
+`judulBersih()` (`lib/judul.ts`) dan menyimpannya di field `judul`; semua tahap
+sesudahnya — blacklist, regional, lokasi, kemiripan, skoring — membaca field
+itu, bukan `title` mentah. Tanpa ini artikel yang sama lolos atau dibuang
+tergantung siapa yang memberitakan: *"Israel Kembali Serang Gaza - Radar
+Banten"* lolos saringan lokasi karena kata "banten" ada di nama medianya.
+
+**3. "Serang" butuh konteks Banten.** Satu-satunya kata lokasi yang juga kata
+kerja bahasa Indonesia. Kata "serang" saja tidak meloloskan artikel — harus ada
+penguat di judul atau ringkasannya: nama tempat Banten lain, jabatan atau satuan
+administratif (`Bupati Serang`, `Pemkab Serang`, `Polres Serang`,
+`Dinas … Serang`), ruas tol `Serang–Panimbang`, atau bentuk `"di Serang"`.
+Daftarnya `PENGUAT_SERANG` di `config/keywords.ts` — isinya **sumber regex,
+bukan teks polos**. Menambah nama kota luar ke blacklist tidak akan pernah
+selesai; yang disyaratkan konteksnya, bukan daftar larangan.
 
 ### Yang TIDAK dibuang
 
 **Filter topik keras dihapus.** Diganti sistem skoring (§7). Alasan: filter keras melolosan listicle SEO yang secara teknis memang membahas wisata.
 
-**Duplikat ditandai, bukan dibuang.** Bandingkan kemiripan kata judul (ambang 0.55). Beri `dupeOf` untuk ditampilkan sebagai badge `⚠️ mirip #2`. User yang memutuskan.
+**Duplikat ditandai, bukan dibuang.** Bandingkan kemiripan kata judul (Jaccard,
+ambang `DUPE_THRESHOLD` = 0.45 di `config/thresholds.ts`). User yang memutuskan.
+
+Pengelompokannya **union-find**, bukan rantai. Dulu tiap artikel berhenti di
+pasangan pertama yang cocok; pada peristiwa besar (24 berita Krakatau dari 24
+media) hasilnya rantai panjang, bukan satu gugus, dan staf melihat beberapa
+tanda terpencar tanpa pernah tahu ada dua puluh empat berita yang sama. Sekarang
+semua yang saling mirip masuk satu gugus walau A dan C tidak langsung mirip,
+asal sama-sama mirip B.
+
+`filterArticles()` mengisi `dupeOf` dengan ID akar gugus sebagai penanda
+sementara. Wakil sebenarnya ditentukan `scoreArticles()` (§7) — pemilihannya
+butuh skor.
+
+Ambang 0.45 dipilih dari pengukuran, bukan tebakan: 0.55 → 5 pasang, 0.50 → 14,
+0.45 → 15 (0 positif palsu), 0.40 → 18 tapi mulai menggabung sudut berita yang
+memang berbeda.
 
 Dedupe antar query tetap dilakukan berdasarkan id link — sekitar 34% artikel muncul di lebih dari satu query.
 
@@ -192,7 +240,17 @@ Percobaan sebelumnya memberi nilai positif ke kata pemerintahan (`pemkot`, `DPRD
 | ❗ Ada `!` atau `?` | **−3** | clickbait |
 | ✳️ Ditemukan di banyak query | **+2** | tanda berita penting |
 
-Daftar lengkap ada di `spike5.mjs` (konstanta `W_WISATA`, `W_EKONOMI`, `W_ACARA`, `W_PEJABAT`, `W_BIROKRASI`, `LISTICLE`). Salin apa adanya.
+Daftar lengkap ada di `config/keywords.ts` (`W_WISATA`, `W_EKONOMI`, `W_ACARA`,
+`W_PEJABAT`, `W_BIROKRASI`, `LISTICLE`), disalin apa adanya dari `spike5.mjs`.
+
+Semua pembacaan judul memakai `it.judul`, bukan `it.title` mentah — kalau tidak,
+media bernama "Banten Wisata" menyumbang +5 🏖 ke berita yang tidak bicara wisata.
+
+### Wakil gugus berita serupa
+
+`scoreArticles()` mengganti akar sementara dari §6 dengan **wakil sebenarnya**:
+anggota berskor tertinggi, karena itu yang paling mungkin dipakai staf. `dupeOf`
+wakilnya jadi `null` supaya kartunya bisa ditandai berbeda.
 
 ### Pengelompokan
 
@@ -202,7 +260,11 @@ Daftar lengkap ada di `spike5.mjs` (konstanta `W_WISATA`, `W_EKONOMI`, `W_ACARA`
 | 3–7 | 🟡 Sedang | Tampil di bawah |
 | < 3 | ⚪ Rendah | Sembunyikan, buka via "Tampilkan semua" |
 
-Hasil uji: 28 tinggi · 81 sedang · 198 rendah. Untuk newsletter yang butuh 4–5 artikel, 28 sudah lebih dari cukup.
+Ambangnya di `config/thresholds.ts` (`SCORE_TINGGI` = 8, `SCORE_SEDANG` = 3).
+
+Hasil uji Juni 2026 (diukur 27 Agustus 2026): 23 tinggi · 59 sedang · 146 rendah.
+Untuk newsletter yang butuh 4–5 artikel, 23 sudah lebih dari cukup. Angkanya
+bergerak antar pemanggilan — lihat catatan non-determinisme di `PRD.md` §13.
 
 ## 8. Modul: Extractor (`lib/extractor.ts`)
 
@@ -236,6 +298,28 @@ Request polos ditolak sebagian portal. Pakai header lengkap:
 
 Teks < 1500 karakter = kemungkinan butuh JS render → tandai bermasalah.
 
+### Peringatan yang dikembalikan (`warnings`)
+
+| Kode | Arti | Ditampilkan sebagai |
+|---|---|---|
+| `artikel-pendek` | teks sumber < 180 kata | ⚠️ Sumber terbatas |
+| `gambar-kecil` | og:image di bawah ambang | ⚠️ Gambar resolusi rendah |
+| `berhalaman` | ada tautan `?page=2` / `/2` ke **artikel yang sama** | ⚠️ Terbagi beberapa halaman |
+
+`berhalaman` yang paling penting: artikel berhalaman **tidak terlihat sebagai
+kegagalan** — teksnya masuk, ringkasannya jadi, tapi isinya cuma halaman satu.
+Terukur 6 dari 59 artikel (10%).
+
+Penandanya sengaja bukan `rel="next"`, `class="pagination"`, atau `aria-label`
+yang memuat "page": ketiganya diuji dan **salah semua** — di portal nyata
+`rel="next"` menunjuk artikel LAIN, dan `pagination` adalah nama modul tema.
+Yang dipakai: tautan yang alamatnya **sama persis dengan artikel ini** ditambah
+nomor halaman ≥ 2. Uji: `scripts/test-berhalaman.ts`.
+
+Mengambil semua halaman otomatis **sengaja tidak dikerjakan**: risiko teks
+sampah ("Baca Juga", navigasi) ikut masuk ke Gemini lebih mahal daripada 10%
+artikel yang perlu diselamatkan manual.
+
 ### Portal yang diketahui bermasalah
 | Portal | Masalah |
 |---|---|
@@ -249,11 +333,15 @@ Jangan dipaksa. Tampilkan opsi input manual.
 **Model:** dari env `GEMINI_MODEL`, default `gemini-3.5-flash-lite` · **SDK:** `@google/genai` · **Env:** `GEMINI_API_KEY`, `GEMINI_MODEL`
 
 > Kuota free tier terukur sendiri (angka resmi Google tidak cocok dengan akun ini):
-> `gemini-2.5-flash` 20/hari + 10/menit · `gemini-3.5-flash-lite` 15/menit, kuotanya
-> terpisah per model. `gemini-2.5-flash-lite` membalas 404 walau masih terdaftar.
-> Ukur ulang dengan `scripts/test-kuota.ts <model>`.
+> `gemini-2.5-flash` 20/hari + 10/menit · `gemini-3.5-flash-lite` 500/hari + 15/menit.
+> Kuotanya **terpisah per model**. `gemini-2.5-flash-lite` membalas 404 walau masih
+> terdaftar. Ukur ulang dengan `scripts/test-kuota.ts <model>`.
 
-> ⚠️ Bagian ini **belum diuji**. Sepanjang riset, Gemini belum pernah dipanggil. Kualitas ringkasan baru ketahuan saat implementasi.
+Sudah dipakai untuk newsletter sungguhan. Kualitas ringkasan layak pakai tanpa
+edit pada sebagian besar artikel; yang perlu dijaga bukan mutunya, tapi
+**panjangnya** dan **jiplakannya** (`lib/jiplak.ts` menolak ringkasan yang
+menyalin sumber). Panjang target dihitung proporsional terhadap panjang sumber —
+`targetKata()` — dan ditampilkan sebagai saran, bukan penghalang.
 
 ### Prompt
 
@@ -297,9 +385,16 @@ semoga membantu, sebagai editor, artikel di atas
 - Panggil **sekuensial**, bukan paralel — hormati limit RPM free tier
 - Volume normal: ~5 call per newsletter, jauh di bawah kuota
 
-## 10. Modul: PDF (`lib/pdf.ts`)
+## 10. PDF (`app/api/export/route.ts` + `templates/newsletter.ts`)
 
-Puppeteer → render `templates/newsletter.html` → PDF.
+Puppeteer → render HTML dari `renderNewsletter()` → PDF.
+
+`lib/pdf.ts` tidak pernah dibuat: seluruh kodenya cuma perlu di satu rute, dan
+memindahkannya ke modul sendiri hanya menambah lapisan.
+
+Chromium-nya dua jalur. Di Vercel: `@sparticuz/chromium` lewat `puppeteer-core`.
+Di lokal: `puppeteer` biasa yang membawa Chromium sendiri — itu sebabnya
+`puppeteer` ada di **devDependencies**, bukan dependencies.
 
 ```ts
 { format: 'A4', printBackground: true, margin: { top:'0', right:'0', bottom:'0', left:'0' } }
@@ -324,11 +419,14 @@ Header (tanggal + Sanghyangresort) · Judul "Sanghyang Highlights" · artikel se
 
 // Response
 {
-  articles: ScoredArticle[],   // terurut skor, BELUM di-resolve
-  stats: { raw: 669, unique: 441, filtered: 307,
-           high: 28, medium: 81, low: 198, failedQueries: 0 }
+  articles: UiArticle[],       // terurut skor, BELUM di-resolve
+  stats: { raw, unique, filtered, high, medium, low, failedQueries }
 }
 ```
+
+`UiArticle` (lihat `lib/ui.ts`) sengaja lebih ramping dari `ScoredArticle`:
+`desc` dan `query` dibuang karena hasil pencarian bisa ~500 artikel sementara
+sessionStorage cuma muat ~5 MB.
 
 ### `POST /api/resolve`
 ```ts
@@ -337,14 +435,27 @@ Header (tanggal + Sanghyangresort) · Judul "Sanghyang Highlights" · artikel se
 
 ### `POST /api/extract`
 ```ts
-{ urls: string[] } → { results: Array<{ url, fullText, imageUrl, error? }> }
+{ urls: string[] }
+  → { results: Array<{ url, fullText, imageUrl, warnings: string[], error? }> }
 ```
+`warnings` lihat §8. URL divalidasi `lib/urlaman.ts` dulu — permintaan ke
+jaringan lokal ditolak (SSRF).
 
 ### `POST /api/summarize`
 ```ts
 { articles: Array<{ title, fullText, sourceName }> }
-  → { summaries: Array<{ summary, error? }> }
+  → { summaries: Array<{ summary, targetKata: [number, number],
+                         warnings: string[], error?, pesanUser? }> }
 ```
+`pesanUser` = kalimat kuota yang aman ditampilkan ke staf. Galat lain tidak
+pernah ditulis mentah di layar.
+
+### `POST /api/login`
+```ts
+{ password: string } → { ok: true } | 401
+```
+Membandingkan sandi dengan `lib/sandi.ts` (tahan timing attack), lalu memasang
+cookie sesi. Semua rute lain dijaga `proxy.ts`.
 
 ### `POST /api/export`
 ```ts
@@ -355,10 +466,16 @@ Header (tanggal + Sanghyangresort) · Judul "Sanghyang Highlights" · artikel se
 ## 12. Environment
 
 ```env
-GEMINI_API_KEY=xxx
+GEMINI_API_KEY=xxx           # wajib
+APP_PASSWORD=sandi-bersama   # wajib — sandi masuk aplikasi
+GEMINI_MODEL=…               # opsional, default gemini-3.5-flash-lite
 ```
 
-Hanya satu variable. Tidak ada database, tidak ada auth di v1.
+Tidak ada database. Ada auth: satu sandi bersama, dijaga `proxy.ts`.
+
+**Kalau `APP_PASSWORD` tidak diset, aplikasi menolak SEMUA permintaan** —
+fail-closed, bukan fail-open. Salah ketik nama variable tidak boleh berarti
+aplikasinya terbuka.
 
 ## 13. Error Handling
 
@@ -380,14 +497,18 @@ Hanya satu variable. Tidak ada database, tidak ada auth di v1.
 | Filter + skoring | < 1 detik (lokal) |
 | Resolve per artikel | 0.56 detik |
 | Extract per artikel | 1–3 detik |
-| Summary per artikel | **9–39 detik (terukur)** |
+| Summary per artikel | 1–2 detik (`gemini-3.5-flash-lite`) |
 
-**Total realistis:** cari ~10-30 detik, proses 5 artikel terpilih **~1-2 menit**.
+**Total sekali pakai, terukur pada uji pemakaian sungguhan: 8 menit 19 detik**
+dari login sampai PDF di tangan — termasuk staf membaca dan mengedit ringkasan,
+yang memakan waktu jauh lebih banyak daripada mesinnya.
 
-> ⚠️ **Revisi setelah uji Gemini.** Perkiraan awal 2-5 detik per summary meleset jauh:
-> pengukuran nyata 9-39 detik (gemini-2.5-flash, artikel 121-505 kata). Untuk 5 artikel
-> berarti **1-2 menit, bukan 30 detik**.
+> **Riwayat.** Perkiraan awal 2–5 detik per summary meleset jauh saat memakai
+> `gemini-2.5-flash`: terukur 9–39 detik. Setelah pindah ke
+> `gemini-3.5-flash-lite` turun ke 1–2 detik. Justru kecepatan itu yang jadi
+> masalah baru: 3 slot tanpa jeda bisa memuntahkan 80–180 permintaan/menit,
+> jauh di atas 15/menit. Karena itu `lib/antre.ts` mengunci laju di 2 slot +
+> jeda 4,2 detik antar-mulai (~14/menit), tidak bergantung pada kecepatan model.
 >
-> Implikasi untuk indikator progres (FRONTEND.md §5): tahap merangkum tidak boleh
-> memakai satu spinner diam. Wajib progres per artikel ("Merangkum berita 3 dari 5…"),
-> kalau tidak user akan mengira aplikasinya menggantung.
+> Indikator progres tetap per artikel dan per tahap (FRONTEND.md §5) — bukan
+> karena lambat, tapi karena tahap yang gagal harus bisa ditunjuk.

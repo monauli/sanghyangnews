@@ -152,40 +152,71 @@ Filter topik keras dihapus — terbukti meloloskan listicle SEO yang secara tekn
 
 **Pelajaran penting:** yang menentukan relevansi adalah **tema**, bukan ada-tidaknya pejabat. Percobaan awal memberi nilai positif ke kata pemerintahan, hasilnya 10 teratas isinya "Raperda Pertanggungjawaban APBD" dan "Mutasi Sekwan" — tidak ada nilainya untuk hotel.
 
-Detail bobot: `BACKEND.md` §7. Konstanta: `spike5.mjs`.
+Detail bobot: `BACKEND.md` §7. Konstanta: `config/keywords.ts` (disalin apa adanya dari `spike5.mjs`).
 
 ## 12. Volume Terukur
 
-Uji nyata, 7 lokasi × 1 bulan (Juni 2026):
+Uji nyata, 19 query × 1 bulan (Juni 2026, diukur 27 Agustus 2026):
 
 ```
-669 artikel mentah
+763 artikel mentah
  ↓ dedupe antar query (34% dobel)
-441 unik
- ↓ blacklist (20) + lokasi tak di judul (114)
-307 lolos
+503 unik
+ ↓ portal iklan (2) + blacklist (33) + regional (46) + lokasi tak di judul (194)
+228 lolos          ← 15 di antaranya ditandai serupa
  ↓ skoring
- 28 🟢 Tinggi   ← tampil default
- 81 🟡 Sedang   ← tertutup
-198 ⚪ Rendah   ← tersembunyi
+ 23 🟢 Tinggi   ← tampil default
+ 59 🟡 Sedang   ← tertutup
+146 ⚪ Rendah   ← tersembunyi
 ```
 
-Newsletter butuh 4–5 artikel. **28 kandidat teratas sudah lebih dari cukup.**
+Newsletter butuh 4–5 artikel. **23 kandidat teratas sudah lebih dari cukup.**
+
+Angka di atas satu potret, bukan konstanta — lihat catatan di §13.
 
 ## 13. Validasi
 
-Uji rentang **1–30 Juni 2026**. Artikel berikut harus muncul di grup Berita Utama:
+> **Google News tidak deterministik.** Tiga pemanggilan rentang yang sama di
+> hari yang sama memberi 763, 800, dan 801 artikel mentah. Artikel bisa hilang
+> atau muncul antar pemanggilan, dan skornya ikut bergeser karena bonus
+> “ditemukan di banyak query” bergantung pada apa yang kebetulan terambil.
+>
+> **Tabel ini panduan, bukan uji yang harus selalu hijau.** Yang perlu
+> dicurigai bukan satu baris yang meleset, tapi pola: grup Tinggi anjlok jauh
+> dari ~20-an, atau beberapa baris hilang sekaligus. Untuk uji yang benar-benar
+> harus hijau, pakai `scripts/test-filter.ts` — datanya buatan sendiri, tidak
+> menyentuh jaringan.
 
-| Artikel | Sumber | Skor uji |
+Uji rentang **1–30 Juni 2026** dengan `npx tsx scripts/test-pipeline.ts`.
+Artikel berikut harus muncul di grup Berita Utama (diukur 27 Agustus 2026):
+
+| Artikel | Sumber | Skor |
 |---|---|---|
-| Exciting Banten Festival 2026 di Anyer | ketik.com | 18 |
-| Hotel Aston Festival Kuliner Jepang | radarbanten.co.id | 15 |
-| Mendes PDT Bantuan Desa Wisata | MediaBanten | 14 |
-| Pesta Laut Carita 2026 | Gerbang Patriot | 13 |
-| Movenpick Resort Carita | detikTravel | 12 |
-| Andra Soni: Anyer Top of Mind | Faktabanten | 12 |
+| Exciting Banten Festival 2026 Hadir di Anyer | ketik.com | 18 |
+| Mendes PDT Siapkan Bantuan Pengembangan Desa Wisata di Banten | MediaBanten.Com | 14 |
+| Ritual Ruwat Laut Pesta Laut Carita 2026 Jadi Magnet Wisata | Gerbang Patriot | 13 |
+| Aston Cilegon Boutique Hotel Sajikan Sensasi Kuliner Jepang | CYBER88 | 12 |
+| Andra Soni: Anyer Harus Kembali Jadi Top of Mind Wisatawan | Faktabanten.co.id | 12 |
+| Libur Idul Adha 2026, Okupansi Hotel di Anyer-Cinangka Tembus 100 Persen | Faktabanten.co.id | 12 |
 
-Yang **tidak boleh** muncul di grup atas: Raperda, Mutasi Sekwan, Monev Beasiswa, Temuan BPK, dan listicle seperti "Butuh Weekend Escape?" atau "5 Tempat Wisata Terbaik".
+Yang berubah sejak tabel pertama (spike, Juni 2026):
+
+- **Movenpick Resort Carita — tidak lagi bisa diuji.** Artikel yang dicatat waktu
+  spike (skor 12) sudah tidak ada di korpus. Yang tersisa judulnya lain, “Ini
+  Fasilitas Movenpick Resort Carita di Banten” (detikTravel), dan skornya 7:
+  judulnya tidak memuat kata bertema selain “fasilitas”. Bukan regresi — memang
+  artikel yang berbeda. Digantikan baris Okupansi Hotel Anyer-Cinangka.
+- **Aston pindah sumber**, dari radarbanten.co.id ke CYBER88, dan skornya 15 → 12.
+  Nama sumber tidak lagi ikut diskor sejak judul RSS dibersihkan di akarnya
+  (`lib/judul.ts`), jadi skor yang lama memang kelebihan.
+- **Skor bergeser 1–3 poin** di beberapa baris karena bonus “banyak query”
+  bergantung pada apa yang terambil hari itu.
+
+Yang **tidak boleh** muncul di grup atas: Raperda, Mutasi Sekwan, Monev Beasiswa,
+Temuan BPK, dan listicle seperti “Butuh Weekend Escape?” atau “5 Tempat Wisata
+Terbaik”. Yang **tidak boleh lolos sama sekali**: Tulungagung, Sungai Serang
+(Blitar), Larung Sedekah, Cipondoh, Tangerang. Kedua daftar itu dicek otomatis
+oleh `scripts/test-pipeline.ts`.
 
 ## 14. Performa Terukur
 
@@ -205,5 +236,9 @@ Yang **tidak boleh** muncul di grup atas: Raperda, Mutasi Sekwan, Monev Beasiswa
 
 - `BACKEND.md` v2.0 — spesifikasi API & modul
 - `FRONTEND.md` v2.0 — spesifikasi halaman & komponen
-- `spike3.mjs` — kode resolver (`resolveOne` baris 187) & `FULL_HEADERS` (baris 50)
-- `spike5.mjs` — konstanta skoring, blacklist, strategi query
+- `spike3.mjs` — riset resolver & `FULL_HEADERS`; sudah diterapkan di `lib/resolver.ts` dan `lib/extractor.ts`
+- `spike5.mjs` — riset konstanta skoring, blacklist, strategi query; sudah diterapkan di `config/keywords.ts`
+
+Kedua berkas spike disimpan sebagai catatan riset. **Yang berlaku adalah kode di
+`lib/` dan `config/`** — keduanya sudah berbeda dari spike (mis. ambang duplikat,
+penguat lokasi, pembersih judul).

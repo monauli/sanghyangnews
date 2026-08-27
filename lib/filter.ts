@@ -4,10 +4,18 @@
  */
 import { BLACKLIST, REGIONAL_BLACKLIST, SUMBER_BLACKLIST, LOC_KEYS, PENGUAT_SERANG } from '@/config/keywords';
 import { DUPE_THRESHOLD } from '@/config/thresholds';
+import { judulBersih } from './judul';
 import type { RawArticle } from './googlenews';
 
 export type FilteredArticle = RawArticle & {
   id: string;          // dari segmen link Google
+  /**
+   * Judul tanpa ekor nama media, huruf besar-kecil dipertahankan.
+   * SATU-SATUNYA judul yang boleh dibaca tahap mana pun setelah ini —
+   * `title` mentah masih memuat " - NamaSumber" dan itu pernah membuat
+   * berita luar negeri lolos hanya karena medianya bernama "Radar Banten".
+   */
+  judul: string;
   location: string;    // lokasi yang cocok di judul, mis. "cilegon"
   hits: number;        // ditemukan di berapa query
   /**
@@ -30,6 +38,24 @@ export type FilterStats = {
   duped: number;
 };
 
+/**
+ * Bentuk banding: judul bersih, huruf dikecilkan, tag HTML dibuang.
+ *
+ * Dulu di sini ada bareTitle(), yang mengupas ekor SEKALI dengan
+ * / - [^-]+$/ dan cuma dipakai untuk cek regional + lokasi. Dua lubangnya:
+ *   1. ekor ganda ("… - tangerangekspres.disway.id - Radar Banten") cuma
+ *      terkupas satu, jadi nama domain ikut dibandingkan;
+ *   2. `hay` (blacklist + penguat "serang") dan seluruh lib/scoring.ts
+ *      membaca judul MENTAH, nama media dan semua.
+ * Akibatnya artikel yang sama lolos atau dibuang tergantung siapa yang
+ * memberitakan: "Israel Kembali Serang Gaza - Radar Banten" lolos karena
+ * kata "banten" di nama medianya, versi CNN-nya dibuang.
+ *
+ * Sekarang judulnya dibersihkan SEKALI di sini dengan judulBersih() yang
+ * sudah teruji, disimpan di field `judul`, dan setiap pembanding memakai
+ * norm(a.judul). Yang butuh bentuk tampilan pakai `judul` apa adanya.
+ */
+
 export const norm = (s: string) =>
   s.toLowerCase().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
@@ -37,13 +63,6 @@ export const norm = (s: string) =>
 export function idOf(link: string): string {
   return (link.split('/').pop() || '').split('?')[0].slice(0, 60);
 }
-
-/**
- * Judul RSS Google selalu berakhiran " - NamaSumber". Wajib dibuang sebelum dipakai:
- * banyak portal bernama "radarbanten.co.id" / "Kabar Banten" — kalau ikut, cek lokasi
- * mencocokkan nama portalnya, bukan isi beritanya.
- */
-export const bareTitle = (t: string) => norm(t).replace(/ - [^-]+$/, '');
 
 /**
  * Portal iklan? Cocokkan per label domain, jangan substring mentah —
@@ -73,8 +92,8 @@ function lokasiDari(title: string, hay: string): string | null {
   return RX_PENGUAT.test(hay) ? 'serang' : null;
 }
 
-function titleWords(title: string): Set<string> {
-  return new Set(bareTitle(title).split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+function titleWords(judul: string): Set<string> {
+  return new Set(norm(judul).split(/[^a-z0-9]+/).filter((w) => w.length > 3));
 }
 
 function jaccard(a: Set<string>, b: Set<string>): number {
@@ -91,7 +110,7 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
     const id = idOf(it.link);
     const hit = seen.get(id);
     if (hit) hit.hits++;
-    else seen.set(id, { ...it, id, location: '', hits: 1, dupeOf: null, grupUkuran: 1 });
+    else seen.set(id, { ...it, id, judul: judulBersih(it.title, it.sourceName), location: '', hits: 1, dupeOf: null, grupUkuran: 1 });
   }
   const unique = [...seen.values()];
 
@@ -104,8 +123,8 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
   let droppedLocation = 0;
   const kept: FilteredArticle[] = [];
   for (const it of unique) {
-    const title = bareTitle(it.title);
-    const hay = norm(it.title + ' ' + it.desc);
+    const title = norm(it.judul);
+    const hay = norm(it.judul + ' ' + it.desc);
     if (sumberIklan(it.sourceUrl, it.sourceName)) { droppedSumber++; continue; }
     if (BLACKLIST.some((b) => hay.includes(b))) { droppedBlacklist++; continue; }
     if (REGIONAL_BLACKLIST.some((r) => title.includes(r))) { droppedRegional++; continue; }
@@ -124,7 +143,7 @@ export function filterArticles(raw: RawArticle[]): { articles: FilteredArticle[]
   // Sekarang union-find: semua yang saling mirip masuk satu gugus, walau A dan C
   // tidak langsung mirip asal sama-sama mirip B.
   // ponytail: O(n²) atas ~300 judul (~45rb banding, <50ms). Kalau nanti ribuan, pakai shingle index.
-  const words = kept.map((a) => titleWords(a.title));
+  const words = kept.map((a) => titleWords(a.judul));
   const induk = kept.map((_, i) => i);
   const cari = (i: number): number => (induk[i] === i ? i : (induk[i] = cari(induk[i])));
   for (let i = 0; i < kept.length; i++) {

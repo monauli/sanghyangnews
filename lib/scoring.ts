@@ -24,9 +24,12 @@ export function tierOf(score: number): Tier {
 
 const hit = (hay: string, g: WeightGroup) => g.words.filter((w) => hay.includes(w));
 
+// Semua pembacaan judul memakai it.judul (sudah tanpa ekor nama media).
+// Dulu it.title mentah: media bernama "Banten Wisata" menyumbang +5 🏖
+// ke berita yang sama sekali tidak bicara wisata.
 function scoreOne(it: FilteredArticle): ScoredArticle {
-  const title = norm(it.title);
-  const hay = norm(it.title + ' ' + it.desc);
+  const title = norm(it.judul);
+  const hay = norm(it.judul + ' ' + it.desc);
   let s = 0;
   const reasons: string[] = [];
 
@@ -50,8 +53,8 @@ function scoreOne(it: FilteredArticle): ScoredArticle {
   const l = LISTICLE.filter((x) => title.includes(x));
   if (l.length) { s -= 4 * l.length; reasons.push(`📰${l[0]}`); }
 
-  if (/^\d+\s/.test(it.title.trim())) { s -= 5; reasons.push('🔢'); }
-  if (/[!?]/.test(it.title)) { s -= 3; reasons.push('❗'); }
+  if (/^\d+\s/.test(it.judul.trim())) { s -= 5; reasons.push('🔢'); }
+  if (/[!?]/.test(it.judul)) { s -= 3; reasons.push('❗'); }
   if (it.hits > 1) { s += 2; reasons.push(`✳️${it.hits}x`); }
 
   return { ...it, score: s, reasons };

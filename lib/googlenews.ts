@@ -5,6 +5,12 @@
 import { QUERIES, UA } from '@/config/keywords';
 
 export type RawArticle = {
+  /**
+   * MENTAH — masih berakhiran " - NamaSumber", kadang dua kali.
+   * Jangan dibandingkan, jangan diskor, jangan ditampilkan. Satu-satunya
+   * yang boleh membacanya adalah filterArticles(), yang membersihkannya
+   * jadi FilteredArticle.judul. Tahap sesudahnya pakai judul itu.
+   */
   title: string;
   link: string;       // URL Google News (terenkripsi) — perlu resolver
   pubDate: string;    // YYYY-MM-DD saja. Jam sengaja dibuang, lihat catatan di bawah.

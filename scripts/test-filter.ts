@@ -54,6 +54,33 @@ for (const [judul, ket] of [
   cek(!lolos(judul), `${ket.padEnd(34)} | ${judul.slice(0, 52)}`);
 }
 
+console.log('\n  ── NAMA MEDIA TIDAK BOLEH MELOLOSKAN APA PUN ──');
+// Google RSS menempelkan " - NamaSumber" ke dalam judul. Kalau nama itu ikut
+// dibandingkan, media Banten mana pun memuat kata "banten" dan meloloskan
+// berita luar negeri: artikel yang sama lolos dari Radar Banten, dibuang dari
+// CNN. Ini yang paling sering dipakai Sanghyang, jadi wajib dijaga di sini.
+const rss = (judul: string, sumber: string, desc = ''): RawArticle =>
+  ({ ...art(`${judul} - ${sumber}`, desc), sourceName: sumber });
+for (const [judul, sumber] of [
+  ['Israel Kembali Serang Wilayah Gaza Utara', 'Radar Banten'],
+  ['Iran dan AS Saling Serang, Harga Minyak Melonjak', 'Kabar Banten'],
+  ['Persib Perkuat Lini Serang Jelang Musim Baru', 'Banten Raya'],
+  ['Kucing Oyen D Las Serang Resmi Tiba di Purbalingga', 'Banten Hay'],
+] as [string, string][]) {
+  cek(filterArticles([rss(judul, sumber)]).articles.length === 0,
+    `[${sumber.padEnd(12)}] ${judul.slice(0, 44)}`);
+}
+// Ekor ganda: portal menempel namanya sendiri, lalu Google menempel lagi.
+cek(filterArticles([rss('HUT ke-19 Kota Serang Libatkan UMKM - tangerangekspres.disway.id', 'Radar Banten')])
+  .articles.length === 1, 'ekor ganda dikupas habis → tidak lagi kena REGIONAL_BLACKLIST "tangerang"');
+// Nama media tidak boleh menyumbang skor tema.
+{
+  const skor = (sumber: string) => scoreArticles(
+    filterArticles([rss('Bupati Serang Tinjau Jalan Rusak', sumber, 'Kegiatan di Banten.')]).articles)[0]?.score;
+  cek(skor('Banten Wisata') === skor('Kabar Banten'),
+    `skor tidak bergantung nama media (${skor('Banten Wisata')} vs ${skor('Kabar Banten')})`);
+}
+
 console.log('\n  ── LOKASI LAIN TIDAK TERPENGARUH ──');
 for (const j of [
   'Wisata Pantai Anyer Ramai Pengunjung',

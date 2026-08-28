@@ -325,6 +325,37 @@ export default function HalamanReview() {
           mengira aplikasinya rusak.
           Yang benar-benar bisa diklik dikembalikan satu per satu. */}
       <div className="pointer-events-none sticky bottom-4 mt-4 flex flex-col items-center gap-2">
+        {/*
+          Kabut. Tombol ini mengambang di atas daftar, dan di tengah gulungan ia
+          memotong judul berita persis di tengah baris — terbaca seperti teks
+          yang rusak, bukan seperti tombol yang melayang.
+
+          Yang TIDAK jadi masalah: ujung halaman. Elemen sticky tetap menempati
+          ruang di aliran, jadi di dasar dokumen tombolnya duduk di bawah kartu
+          terakhir — terukur berjarak 40px, sama saja dengan atau tanpa pesan
+          validasi. Menambah padding bawah tidak menyentuh apa pun.
+
+          Tingginya sengaja diikat ke pita (-top-6 sampai -bottom-4), bukan
+          angka tetap: yang pekat cuma sepanjang pita itu sendiri — persis pita
+          yang memang sudah menutupi isi — lalu memudar habis dalam ~35px di
+          atasnya.
+
+          Putih, bukan gray-50 (warna latar halaman). Dicoba dua-duanya: yang
+          ada di bawah pita hampir selalu KARTU, dan kartunya putih. Kabut
+          gray-50 menggelapkan kartunya, jadi terbaca sebagai kotak abu-abu
+          bertepi — persis kesan "rusak" yang mau dihilangkan. Putih membuat
+          kartunya memudar ke warnanya sendiri.
+
+          pointer-events-none: kotaknya selebar halaman dan tidak terlihat.
+          Tanpa ini kita mengulang persis bug yang baru dibereskan — lapisan
+          transparan yang menelan klik tanpa petunjuk apa penyebabnya.
+          Tidak ada transisi di sini, jadi tidak ada yang perlu dijaga untuk
+          prefers-reduced-motion: kabutnya diam.
+        */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-x-6 -top-6 -bottom-4 -z-10 bg-gradient-to-t from-white from-55% to-transparent"
+        />
         {pesanSimpan && (
           <p className="pointer-events-auto rounded-lg bg-red-50 px-4 py-2 text-sm text-red-800 shadow-sm">{pesanSimpan}</p>
         )}
